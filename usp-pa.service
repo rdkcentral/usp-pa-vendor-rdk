@@ -1,0 +1,14 @@
+[Unit]
+Description=USP Agent
+After=syslog.target network.target
+
+
+[Service]
+ExecStart=/usr/bin/UspPa -v1 --resetfile /etc/usp-pa/usp_factory_reset.conf --truststore /etc/usp-pa/usp_truststore.pem --interface erouter0 --log syslog --dbfile /nvram/usp-pa.db
+
+
+RestartSec=30
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
