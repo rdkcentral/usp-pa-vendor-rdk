@@ -298,9 +298,8 @@ int VENDOR_Stop(void)
 **
 ** WaitForRdkComponentsReady
 **
-** Waits until all RDK components have registered with the system,
-** so that we don't attempt to query them until they are
-** NOTE: After a factory reset or reboot, this typically takes 2 minutes or so after bootup
+** Waits until the pam component is ready,
+** so that we don't attempt to query any of the parameters provided by it, until it is
 **
 ** \param   None
 **
@@ -309,28 +308,30 @@ int VENDOR_Stop(void)
 **************************************************************************/
 void WaitForRdkComponentsReady(void)
 {
-    int ccsp_err;
-    dbus_bool is_ready = 0;
+    int ccsp_err = CCSP_ERR_NOT_CONNECT;
+    char *paths[1] = { "Device.DeviceInfo.SerialNumber" };
+    int num_values = 0;
+    parameterValStruct_t **values = NULL;
     int count = 0;
   
-    while (is_ready == 0)
+    while (ccsp_err != CCSP_SUCCESS)
     {
-        // Log an error if the following call fails, but continue to poll
-        ccsp_err = CcspBaseIf_isSystemReady(bus_handle, FULL_COMPONENT_REGISTRAR_NAME, &is_ready);
+        // Wait until pam component is running
+        ccsp_err = CcspBaseIf_getParameterValues(bus_handle, "eRT.com.cisco.spvtg.ccsp.pam", "/com/cisco/spvtg/ccsp/pam", paths, NUM_ELEM(paths), &num_values, &values);
         if (ccsp_err != CCSP_SUCCESS)
         {
-            USP_ERR_SetMessage("%s: CcspBaseIf_isSystemReady() failed (%d - %s).", __FUNCTION__, ccsp_err, ToCcspErrString(ccsp_err));
-        }
+            USP_ERR_SetMessage("%s: CcspBaseIf_getParameterValues() failed (%d - %s).", __FUNCTION__, ccsp_err, ToCcspErrString(ccsp_err));
 
-        // Wait a while, and try again, if not all of the RDK components have registered
-        #define SYSTEM_READY_POLL_PERIOD 10
-        if (is_ready == 0)
-        {
+            // Wait a while, and try again, if the pam component is not running yet
+            #define SYSTEM_READY_POLL_PERIOD 10
             USP_ERR_SetMessage("%s: Waiting %d seconds for RDK system to be ready (total_wait=%d seconds)", __FUNCTION__, SYSTEM_READY_POLL_PERIOD, count);
             sleep(SYSTEM_READY_POLL_PERIOD);
             count += SYSTEM_READY_POLL_PERIOD;
         }
     }
+
+    // Free the values read
+    free_parameterValStruct_t(bus_handle, num_values, values);
 }
 
 /*********************************************************************//**
