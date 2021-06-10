@@ -100,7 +100,7 @@
 
 // Location of file or directory containing certificates to report in Device.Security.Certificate
 // NOTE: These certificates are not added to the agent's trust store
-#define SYSTEM_CERT_PATH                     "/etc/ssl/certs"
+#define SYSTEM_CERT_PATH                     ""      /* "/etc/ssl/certs" */
 
 //-----------------------------------------------------------------------------------------
 // Definitions associated with grouped parameter get/set
