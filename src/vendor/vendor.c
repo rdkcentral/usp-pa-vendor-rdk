@@ -64,6 +64,7 @@
 
 #include <ccsp_message_bus.h>
 #include <ccsp_base_api.h>
+#include <dslh_definitions_database.h>
 
 #include "common_defs.h"
 #include "usp_api.h"
@@ -100,7 +101,7 @@ static int num_rdk_components = 0;
 
 //-------------------------------------------------------------------------------------------------
 // Write ID for RDK component database transactions associated with set, add and delete
-#define CCSP_USP_WRITE_ID                 CCSP_COMPONENT_ID_ACS
+#define CCSP_USP_WRITE_ID                 DSLH_MPA_ACCESS_CONTROL_ACS
 
 //-------------------------------------------------------------------------------------------------
 // Forward declarations. Note these are not static, because we need them in the symbol table for USP_LOG_Callstack() to show them
