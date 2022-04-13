@@ -1962,6 +1962,29 @@ void Add_ParamToDM(rdk_component_t *rdkc, char *instantiated_path, char *schema_
     char *type_str;
     char *is_exist;
     char buf[128];
+    char *p;
+
+    // Iterate over the path, checking that all occurrences of the instance separator are correctly specified
+    p = schema_path;
+    while (p != NULL)
+    {
+        // Break out of loop if checked all occurrences
+        p = strchr(p, '{');
+        if (p == NULL)
+        {
+            break;
+        }
+
+        // Exit if instance separator is not correctly specified
+        if (strncmp(&p[-1], ".{i}.", 5) != 0)
+        {
+            USP_LOG_Error("%s: WARNING: Bad path: Not adding %s to the data model", __FUNCTION__, schema_path);
+            return;
+        }
+
+        // Skip '{' character
+        p++;
+    }
 
     // Exit if param already exists
     is_exist = USP_ARG_Get(rdk_params, schema_path, NULL);
