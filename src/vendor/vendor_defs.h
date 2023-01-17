@@ -82,7 +82,7 @@
 
 // Uncomment and change the following define to override the severity level of messages sent to syslog.
 // Refer to the syslog documentation and its priority argument to know the possible values.
-//#define SYSLOG_SEVERITY_OVERRIDE LOG_ERR
+#define SYSLOG_SEVERITY_OVERRIDE LOG_ERR
 
 // NB: If you change this, you must also change the SSL callback functions within mqtt.c
 // This will compile fail if you do not
