@@ -15,9 +15,10 @@
 
 /*
  *
- * Copyright (C) 2019-2021, Broadband Forum
- * Copyright (C) 2016-2021  CommScope, Inc
+ * Copyright (C) 2019-2022, Broadband Forum
+ * Copyright (C) 2016-2022  CommScope, Inc
  * Copyright (C) 2020, BT PLC
+ * Copyright (C) 2022, Snom Technology GmbH
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -78,6 +79,10 @@
 #define MAX_MQTT_SUBSCRIPTIONS 5
 #define MAX_WEBSOCKET_CLIENTS (MAX_CONTROLLERS)  // Maximum number of WebSocket controllers which an agent sends to, or receives from
 #define MAX_NODE_MAP_BUCKETS  1024  // Maximum number of buckets in the data model node map. This should be set to at least the number of registered parameters and objects in the data model
+
+// Uncomment and change the following define to override the severity level of messages sent to syslog.
+// Refer to the syslog documentation and its priority argument to know the possible values.
+//#define SYSLOG_SEVERITY_OVERRIDE LOG_ERR
 
 // NB: If you change this, you must also change the SSL callback functions within mqtt.c
 // This will compile fail if you do not
@@ -145,10 +150,6 @@
 //#define CONNECT_ONLY_OVER_WAN_INTERFACE
 
 //-----------------------------------------------------------------------------------------
-// Uncomment the following define for the GetResponse to contain a resolved_path_result for every object (and sub object)
-#define GET_RESPONSE_SIMPLE_FORMAT
-
-//-----------------------------------------------------------------------------------------
 // OUI (Organization Unique Identifier) to use for this CPE. This code will be unique to the manufacturer
 // This may be overridden by an environment variable. See GetDefaultOUI(). Or by a vendor hook for Device.DeviceInfo.ManufacturerOUI (if REMOVE_DEVICE_INFO is defined)
 #define VENDOR_OUI "012345"
@@ -191,6 +192,8 @@
 // This may be overridden using the '-i' option
 #define WEBSOCKET_LISTEN_INTERFACE "erouter0"  /*"lo"*/
 
+// Fallback QoS value for MQTT messages when not configured by TR-369 parameters.
+#define MQTT_FALLBACK_QOS 0 /* 0, 1, 2 */
 
 //-----------------------------------------------------------------------------------------
 // Defines for Bulk Data Collection
@@ -205,6 +208,17 @@
 #define BULKDATA_CONNECT_TIMEOUT 30   // Timeout (in seconds) when attempting to connect to a bulk data collection server
 #define BULKDATA_TOTAL_TIMEOUT   60   // Total timeout (in seconds) to connect and send to a bulk data collection server
                                       // BULKDATA_TOTAL_TIMEOUT includes BULKDATA_CONNECT_TIMEOUT, so should be larger than it.
+
+//-----------------------------------------------------------------------------------------
+// Uncomment the following define to ensure that DM_LONG and DM_ULONG values are represented with full precision
+// in JSON formatted data (e.g. Bulk Data Collection reports and USP Boot! event)
+// If this if undefined, they are represented as floating point doubles, with some loss of precision
+#define REPRESENT_JSON_NUMBERS_WITH_FULL_PRECISION
+
+//-----------------------------------------------------------------------------------------
+// Uncomment the following define to include the End-to-End Session context in OB-USP-A
+// The current E2E Session Context support is partial and lot of cases are not fully implemented yet.
+//#define E2ESESSION_EXPERIMENTAL_USP_V_1_2
 
 //-----------------------------------------------------------------------------------------
 // Static Declaration of all Controller Trust roles
@@ -227,4 +241,3 @@ typedef enum
 
 
 #endif
-
