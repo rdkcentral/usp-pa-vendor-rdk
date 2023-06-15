@@ -138,6 +138,10 @@ int WriteDMConfig(char *filename, char *mode, kv_vector_t *kvv, char *comment);
 void *rdk_malloc(size_t size);
 void rdk_free(void *ptr);
 
+#ifdef    INCLUDE_LCM_DATAMODEL
+#include "lcm_rbus_datamodel.c"
+#endif
+
 /*********************************************************************//**
 **
 ** VENDOR_Init
@@ -151,6 +155,9 @@ void rdk_free(void *ptr);
 **************************************************************************/
 int VENDOR_Init(void)
 {
+#ifdef INCLUDE_LCM_DATAMODEL
+    LCM_VENDOR_Init();
+#endif
     int i;
     int err;
     vendor_hook_cb_t core_callbacks;
@@ -268,6 +275,9 @@ int VENDOR_Init(void)
 **************************************************************************/
 int VENDOR_Start(void)
 {
+#ifdef INCLUDE_LCM_DATAMODEL
+    LCM_VENDOR_Start();
+#endif
     return USP_ERR_OK;
 }
 
@@ -285,6 +295,9 @@ int VENDOR_Start(void)
 **************************************************************************/
 int VENDOR_Stop(void)
 {
+#ifdef INCLUDE_LCM_DATAMODEL
+    LCM_VENDOR_Stop();
+#endif
     // Disconnect from the RDK bus
     if (bus_handle != NULL)
     {
