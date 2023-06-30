@@ -174,7 +174,9 @@ static void LCM_Translate_Event(__attribute((unused)) rbusHandle_t handle, rbusE
                 {
                     //format time to a string ( as USP event args in obuspa are all char *) according to iso 8601
                     //re-use the num_str buffer, max size of this string should also be 20(1970-01-01T00:00:00Z)+1(null), so its fine.
-                    strftime(num_str, sizeof(num_str), "%Y-%m-%dT%H:%M:%SZ", &tmp->m_time);
+                    struct tm val_as_tm;
+                    rbusValue_UnMarshallRBUStoTM(&val_as_tm, tmp)
+                    strftime(num_str, sizeof(num_str), "%Y-%m-%dT%H:%M:%SZ", &val_as_tm);
                     ptr = num_str;
                 }
                 break;
