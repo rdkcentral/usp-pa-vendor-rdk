@@ -178,7 +178,7 @@ static void LCM_Translate_Event(__attribute((unused)) rbusHandle_t handle, rbusE
                     //This local copy can be removed when rbus PR#137 is accepted
                     rbusDateTime_t tmp_copy = *tmp;
                     struct tm val_as_tm;
-                    rbusValue_UnMarshallRBUStoTM(&val_as_tm, &tmp_copy)
+                    rbusValue_UnMarshallRBUStoTM(&val_as_tm, &tmp_copy);
                     strftime(num_str, sizeof(num_str), "%Y-%m-%dT%H:%M:%SZ", &val_as_tm);
                     ptr = num_str;
                 }
