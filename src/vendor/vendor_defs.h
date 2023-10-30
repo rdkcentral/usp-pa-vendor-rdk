@@ -110,7 +110,7 @@
 //-----------------------------------------------------------------------------------------
 // Definitions associated with grouped parameter get/set
 // Each group represents a software component that can set/get a list of data model parameters in a single operation via RPC/messaging
-#define MAX_VENDOR_PARAM_GROUPS  16 // Maximum number of software components that implement the data model
+#define MAX_VENDOR_PARAM_GROUPS  35 // Maximum number of software components that implement the data model
 
 // Uncomment the following define to perform each parameter set individually, rather than in a group
 // This must be uncommented if the underlying data model implementation does not support commit/abort transactional semantics
