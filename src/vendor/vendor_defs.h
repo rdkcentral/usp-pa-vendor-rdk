@@ -118,7 +118,7 @@
 
 // Uncomment the following define to perform each parameter get individually, rather than in a group
 // Typically, this would only be used during development testing/debugging
-//#define GET_GROUPED_PARAMETERS_INDIVIDUALLY
+#define GET_GROUPED_PARAMETERS_INDIVIDUALLY
 
 //-----------------------------------------------------------------------------------------
 // Defines associated with factory reset database
