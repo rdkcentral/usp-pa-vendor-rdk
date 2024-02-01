@@ -1571,11 +1571,7 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
         // If this is an object instance, then refresh it in the data model
         if ((len >= 2) && (name[len-1] == '.') && (IS_NUMERIC(name[len-2])))
         {
-            err = USP_DM_RefreshInstance(name);
-            if (err != USP_ERR_OK)
-            {
-                goto exit;
-            }
+            USP_DM_RefreshInstance(name);
         }
     }
 
@@ -1583,7 +1579,6 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
     err = USP_ERR_OK;
     *expiry_period = 30;
 
-exit:
     // Free the CcspBaseIf allocated structure, as we have finished with it
     free_parameterInfoStruct_t(bus_handle, num_param_infos, param_infos);
     return err;
