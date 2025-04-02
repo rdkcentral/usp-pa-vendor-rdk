@@ -192,8 +192,9 @@
 // Key used to obfuscate (using XOR) all secure data model parameters stored in the USP Agent database (eg passwords)
 #define PASSWORD_OBFUSCATION_KEY  "$%^&*()@~#/,?"
 
-// Timeout (in seconds) when performing a connect to a STOMP broker
+// Timeout (in seconds) when performing a connect to a STOMP or MQTT broker
 #define STOMP_CONNECT_TIMEOUT 30
+#define MQTT_CONNECT_TIMEOUT 30
 
 // Number of seconds after a STOMP server heartbeat was expected, before retrying the connection
 #define STOMP_SERVER_HEARTBEAT_GRACE_PERIOD 10
@@ -261,6 +262,12 @@
 #ifdef REMOVE_DEVICE_SECURITY
 #if !defined(DISABLE_STOMP) || defined(ENABLE_COAP) || defined(ENABLE_MQTT) || defined(ENABLE_WEBSOCKETS) || !defined(REMOVE_DEVICE_BULKDATA)
 #error "If REMOVE_DEVICE_SECURITY is defined, then STOMP, CoAP, MQTT, WebSockets and Bulk Data Collection must be disabled"
+#endif
+#endif
+
+#ifndef ENABLE_UDS
+#if !defined(REMOVE_USP_BROKER) || !defined(REMOVE_USP_SERVICE)
+#error "If UDS MTP is disabled, then REMOVE_USP_BROKER and REMOVE_USP_SERVICE must be defined"
 #endif
 #endif
 
