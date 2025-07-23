@@ -408,6 +408,9 @@ int VENDOR_Init(void)
     vendor_hook_cb_t core_callbacks;
     int rbus_err;
     struct stat info;
+    char *usp_pa_dm_dir;
+    char dm_objs_file[PATH_MAX];
+    char dm_params_file[PATH_MAX];
 
     // Exit if unable to connect to the RDK message bus
     // NOTE: We do this here, rather than in VENDOR_Start() because the SerialNumber, ManufacturerOUI and SoftwareVersion are cached before USP_PA_Start() is called
@@ -418,14 +421,21 @@ int VENDOR_Init(void)
         return USP_ERR_INTERNAL_ERROR;
     }
 
+    // Override data model paths from environment variable
+    usp_pa_dm_dir = getenv("USP_PA_DM_DIR");
+    if (usp_pa_dm_dir == NULL)
+    {
+        usp_pa_dm_dir = "/etc/usp-pa";
+    }
+
     // Create the data model config files, if they do not already exist
-    #define DM_OBJS_FILE   "/etc/usp-pa/usp_dm_objs.conf"
-    #define DM_PARAMS_FILE "/etc/usp-pa/usp_dm_params.conf"
-    if ((stat(DM_OBJS_FILE, &info) != 0) || (stat(DM_PARAMS_FILE, &info) != 0))
+    USP_SNPRINTF(dm_objs_file, sizeof(dm_objs_file), "%s/usp_dm_objs.conf", usp_pa_dm_dir);
+    USP_SNPRINTF(dm_params_file, sizeof(dm_params_file), "%s/usp_dm_params.conf", usp_pa_dm_dir);
+    if ((stat(dm_objs_file, &info) != 0) || (stat(dm_params_file, &info) != 0))
     {
         // Discover the data model objects and parameters
         USP_LOG_Info("%s: Regenerating missing USP data model config files. This may take a while.", __FUNCTION__);
-        err = DiscoverDM_ForAllComponents(DM_OBJS_FILE, DM_PARAMS_FILE);
+        err = DiscoverDM_ForAllComponents(dm_objs_file, dm_params_file);
         if (err != USP_ERR_OK)
         {
             return err;
@@ -434,14 +444,14 @@ int VENDOR_Init(void)
     }
 
     // Exit if unable to register RDK data model objects
-    err = RegisterRdkObjects(DM_OBJS_FILE);
+    err = RegisterRdkObjects(dm_objs_file);
     if (err != USP_ERR_OK)
     {
         return err;
     }
 
     // Exit if unable to register RDK data model parameters
-    err = RegisterRdkParams(DM_PARAMS_FILE);
+    err = RegisterRdkParams(dm_params_file);
     if (err != USP_ERR_OK)
     {
         return err;
