@@ -118,6 +118,7 @@ int WriteDMConfig(char *filename, char *mode, kv_vector_t *kvv, char *comment);
 #include "lcm_rbus_datamodel.c"
 #endif
 
+#ifndef REMOVE_DEVICE_IP_DIAGNOSTICS
 #define DEV_IP_DIA "Device.IP.Diagnostics.IPPing."
 #define TIMEOUT_SECONDS 15
 
@@ -387,6 +388,7 @@ int VENDOR_USP_REGISTER_Operation()
     // If the code gets here, then registration was successful
     return err;
 }
+#endif // REMOVE_DEVICE_IP_DIAGNOSTICS
 
 /*********************************************************************//**
 **
@@ -486,6 +488,7 @@ int VENDOR_Init(void)
         return err;
     }
 
+#ifndef REMOVE_DEVICE_IP_DIAGNOSTICS
     // Register data model parameters used in VENDOR_USP_REGISTER_Operation
     err = VENDOR_USP_REGISTER_Operation();
     if (err!=USP_ERR_OK)
@@ -493,6 +496,7 @@ int VENDOR_Init(void)
         USP_LOG_Error("VENDOR_USP_REGISTER_Operation failed\n");
         return err;
     }
+#endif
 
     return USP_ERR_OK;
 }
