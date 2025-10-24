@@ -1485,7 +1485,10 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
         // If this is an object instance, then refresh it in the data model
         if ((len >= 2) && (name[len-1] == '.') && (IS_NUMERIC(name[len-2])))
         {
-            USP_DM_RefreshInstance(name);
+            if (USP_DM_IsRegistered(name))
+            {
+                USP_DM_RefreshInstance(name);
+            }
         }
         elem = elem->next;
     }
