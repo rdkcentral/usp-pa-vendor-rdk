@@ -292,7 +292,7 @@ exit:
     pthread_cond_destroy(&condition_var);
 
     // Free the input conditions
-    USP_FREE(cond);
+    USP_SAFE_FREE(cond);
     return NULL;
 
 }
@@ -351,7 +351,7 @@ exit:
     // Exit if an error occurred (freeing the input conditions)
     if (err != USP_ERR_OK)
     {
-        USP_FREE(cond);
+        USP_SAFE_FREE(cond);
         return USP_ERR_COMMAND_FAILURE;
     }
 
@@ -1348,12 +1348,14 @@ int RDK_GetGroup(int group_id, kv_vector_t *params)
     {
         const char* param_name = rbusProperty_GetName(next);
         rbusValue_t param_value = rbusProperty_GetValue(next);
-        replace = USP_ARG_ReplaceWithHint(params, (char *)param_name, rbusValue_ToString(param_value, NULL, 0), i);
+        char *string_value = rbusValue_ToString(param_value, NULL, 0);
+        replace = USP_ARG_ReplaceWithHint(params, (char *)param_name, string_value, i);
         if (replace == false)
         {
             USP_ERR_SetMessage("%s: R-Bus returned a parameter name that was not requested", __FUNCTION__);
         }
 
+        USP_SAFE_FREE(string_value);
         next = rbusProperty_GetNext(next);
     }
     err = USP_ERR_OK;
@@ -1362,7 +1364,7 @@ exit:
     // Clean up
     rbusProperty_Release(value);
     rbusProperty_Release(next);
-    USP_FREE(paths);
+    USP_SAFE_FREE(paths);
 
     return err;
 }
