@@ -466,26 +466,30 @@ int VENDOR_Init(void)
         return err;
     }
 
-    // Initialise core vendor hooks structure with callbacks
-    // NOTE: commit/abort transaction callbacks are not registered as it was found that abort is not
-    //       supported consistently across all RDK parameters
-    memset(&core_callbacks, 0, sizeof(core_callbacks));
-    core_callbacks.reboot_cb = RDK_Reboot;
-    core_callbacks.factory_reset_cb = RDK_FactoryReset;
-    core_callbacks.get_agent_endpoint_id_cb = RDK_GetEndpointId;
-
-    // Exit if unable to register database transaction hooks
-    err = USP_REGISTER_CoreVendorHooks(&core_callbacks);
-    if (err != USP_ERR_OK)
+    // Only register core callbacks and fixup reboot cause if running as the USP broker
+    if (RUNNING_AS_USP_SERVICE() == false)
     {
-        return err;
-    }
+        // Initialise core vendor hooks structure with callbacks
+        // NOTE: commit/abort transaction callbacks are not registered as it was found that abort is not
+        //       supported consistently across all RDK parameters
+        memset(&core_callbacks, 0, sizeof(core_callbacks));
+        core_callbacks.reboot_cb = RDK_Reboot;
+        core_callbacks.factory_reset_cb = RDK_FactoryReset;
+        core_callbacks.get_agent_endpoint_id_cb = RDK_GetEndpointId;
 
-    // Modify the cause of reboot stored in the USP database, if it was triggered by another protocol agent, or the device's UI
-    err = FixupRebootCause();
-    if (err != USP_ERR_OK)
-    {
-        return err;
+        // Exit if unable to register database transaction hooks
+        err = USP_REGISTER_CoreVendorHooks(&core_callbacks);
+        if (err != USP_ERR_OK)
+        {
+            return err;
+        }
+
+        // Modify the cause of reboot stored in the USP database, if it was triggered by another protocol agent, or the device's UI
+        err = FixupRebootCause();
+        if (err != USP_ERR_OK)
+        {
+            return err;
+        }
     }
 
 #ifndef REMOVE_DEVICE_IP_DIAGNOSTICS
