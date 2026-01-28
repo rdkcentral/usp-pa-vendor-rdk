@@ -69,6 +69,7 @@
 #include "usp_api.h"
 #include "text_utils.h"
 #include "os_utils.h"
+#include "str_vector.h"
 
 //-------------------------------------------------------------------------------------------------
 // Handle for connection to RBus
@@ -1476,31 +1477,89 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
         return USP_ERR_OK;
     }
 
-    // Iterate over all parameters and objects found
-    rbusElementInfo_t* elem;
-    elem = elems;
-    while(elem)
+    if (elems != NULL)
     {
-        name = (char *)elem->name;
-        len = strlen(name);
-
-        // If this is an object instance, then refresh it in the data model
-        if ((len >= 2) && (name[len-1] == '.') && (IS_NUMERIC(name[len-2])))
+        // Iterate over all parameters and objects found
+        rbusElementInfo_t* elem;
+        elem = elems;
+        while(elem)
         {
-            if (USP_DM_IsRegistered(name))
+            name = (char *)elem->name;
+            len = strlen(name);
+
+            // If this is an object instance, then refresh it in the data model
+            if ((len >= 2) && (name[len-1] == '.') && (IS_NUMERIC(name[len-2])))
             {
-                USP_DM_RefreshInstance(name);
+                if (USP_DM_IsRegistered(name))
+                {
+                    USP_DM_RefreshInstance(name);
+                }
             }
+            elem = elem->next;
         }
-        elem = elem->next;
+
+        // Free the rbusElementInfo_get allocated structure, as we have finished with it
+        rbusElementInfo_free(bus_handle, elems);
+    }
+    else
+    {
+        const char* param_names[] = {path};
+        int num_props = 0;
+        rbusProperty_t properties = NULL;
+
+        USP_LOG_Info("%s: rbusElementInfo_get(%s) returned no parameters, so fallback to rbus_getExt", __FUNCTION__, path);
+        rbus_err = rbus_getExt(bus_handle, 1, param_names, &num_props, &properties);
+        if (rbus_err != RBUS_ERROR_SUCCESS)
+        {
+            USP_LOG_Warning("%s: rbus_getExt(%s) failed (%d- %s). Returning 0 instances for this object.", __FUNCTION__, path, rbus_err, ToRbusErrString(rbus_err));
+            *expiry_period = 30;
+            return USP_ERR_OK;
+        }
+
+        // Iterate over all parameters and objects found
+        // Store all unique instance objects found in a list
+        str_vector_t instances;
+        STR_VECTOR_Init(&instances);
+        rbusProperty_t next = properties;
+        for (int i = 0; i < num_props; i++)
+        {
+            // Get the parent path of the parameter
+            char parent[MAX_DM_PATH] = {};
+            const char* name = rbusProperty_GetName(next);
+            TEXT_UTILS_SplitPath((char *)name, parent, sizeof(parent));
+
+            // If this is a registered object instance, then add it to the list if it is not already present
+            len = strlen(parent);
+            if ((len >= 2) && (parent[len-1] == '.') && (IS_NUMERIC(parent[len-2])))
+            {
+                if (USP_DM_IsRegistered(parent))
+                {
+                    STR_VECTOR_Add_IfNotExist(&instances, parent);
+                }
+            }
+
+            next = rbusProperty_GetNext(next);
+        }
+
+        // Free the rbusProperty_t structure, as we have finished with it
+        rbusProperty_Release(properties);
+
+        // Sort the list of instances to ensure they are refreshed in order
+        STR_VECTOR_Sort(&instances);
+
+        // Iterate over sorted list of instances, refreshing each one in the data model
+        for (int i = 0; i < instances.num_entries; i++)
+        {
+            char *instance_path = instances.vector[i];
+            USP_DM_RefreshInstance(instance_path);
+        }
+        STR_VECTOR_Destroy(&instances);
     }
 
     // If the code gets here, then all object instances were successfully added to the data model
     err = USP_ERR_OK;
     *expiry_period = 30;
 
-    // Free the rbusElementInfo_get allocated structure, as we have finished with it
-    rbusElementInfo_free(bus_handle, elems);
     return err;
 }
 
