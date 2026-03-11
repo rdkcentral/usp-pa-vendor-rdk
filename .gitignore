@@ -23,3 +23,6 @@ ylwrap
 *.m4
 .dirstamp
 *.swp
+*.gcno
+*.gcda
+*.gcov

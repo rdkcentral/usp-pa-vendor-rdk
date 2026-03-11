@@ -13,7 +13,10 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     libssl-dev \
     libz-dev \
-    pkg-config
+    pkg-config \
+    valgrind \
+    psmisc \
+    lcov
 
 # Environment variables from Yocto SDK for default compiler flags
 ENV CFLAGS=" -Os -pipe -g -feliminate-unused-debug-types "
@@ -24,7 +27,7 @@ WORKDIR /work
 
 # obuspa
 # Minimum version is v10.0.9 to install header files in the proper location
-ARG OBUSPA_REF="cd71ce1fe34e782b6b417e9eee46f861060301bf"
+ARG OBUSPA_REF="7262a0eb579cee12dfda956d036f8ec70a343b0c"
 RUN git clone https://github.com/BroadbandForum/obuspa && \
     cd obuspa && \
     git checkout "$OBUSPA_REF" && \
@@ -41,22 +44,23 @@ RUN git clone https://github.com/BroadbandForum/obuspa && \
     rm -rf /work/obuspa
 
 # rbus
-ARG RBUS_VERSION="v2.0.11"
-RUN git clone https://github.com/rdkcentral/rbus.git -b "$RBUS_VERSION" && \
-    cd rbus && \
+COPY rbus /work/rbus
+RUN cd /work/rbus && \
     cmake -B build \
         -DCMAKE_INSTALL_PREFIX="/usr/local" \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DCMAKE_C_FLAGS="-I/usr/local/include" \
         -DBUILD_FOR_DESKTOP=ON \
         -DMSG_ROUNDTRIP_TIME=ON \
-        -DBUILD_RBUS_SAMPLE_APPS=OFF \
+        -DBUILD_RBUS_SAMPLE_APPS=ON \
         -DBUILD_RBUS_TEST_APPS=OFF  && \
-    make VERBOSE=1 -C build install -j && \
+    make VERBOSE=1 -C build install && \
+    cp /work/rbus/build/deps/src/msgpack/libmsgpackc.so* /usr/local/lib/ && \
+    cp /work/rbus/build/deps/src/cjson/libcjson.so* /usr/local/lib/ && \
     rm -rf /work/rbus
 
 # usp-pa-vendor-rdk
-COPY . /work/usp-pa-vendor-rdk
+COPY usp-pa-vendor-rdk /work/usp-pa-vendor-rdk
 RUN cd /work/usp-pa-vendor-rdk/src/vendor && \
     autoreconf --force --install && \
     mkdir -p build && \
@@ -68,4 +72,16 @@ RUN cd /work/usp-pa-vendor-rdk/src/vendor && \
     make install-strip -j && \
     rm -rf /work/usp-pa-vendor-rdk
 
-ENTRYPOINT [ "/bin/bash" ]
+# Create symlink for UspPA as requested by user
+RUN ln -s /usr/local/bin/obuspa /usr/local/bin/UspPA
+
+COPY start_services.sh /usr/local/bin/start_services.sh
+RUN chmod +x /usr/local/bin/start_services.sh
+
+# Ensure log files exist for tail
+RUN touch /var/log/rtrouted.log /var/log/obuspa.log
+
+# Ensure etc directory exists for vendor config
+RUN mkdir -p /etc/usp-pa && chmod 777 /etc/usp-pa
+
+ENTRYPOINT [ "/usr/local/bin/start_services.sh" ]
