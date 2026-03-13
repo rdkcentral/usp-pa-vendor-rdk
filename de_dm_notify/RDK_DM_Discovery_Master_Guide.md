@@ -111,7 +111,89 @@ sequenceDiagram
 
 ---
 
-## 5. Technical Implementation Details
+## 5. Handling Registration Storms: Multi-Level Batching
+
+When a provider registers a large number of parameters in a short time (a "Registration Storm"), the RDK-USP system employs a multi-level strategy to prevent performance degradation and bus congestion.
+
+### A. Granular Signal Emission (RBUS Core)
+At the lowest level, the **RBUS Core** remains granular. 
+*   Every `rbus_regDataElements` call results in individual signals for each element.
+*   **Why?** This ensures that if only one specific parameter fails or is updated, the system doesn't lose granularity.
+
+### B. Intermediate Batching (Notification Manager)
+The **RBUS Data Model Notification Manager** (inside the Agent's process) acts as a buffer.
+*   **The Queue**: It receives individual signals and places them into an internal `rtVector` queue.
+*   **Batch Windows**: Instead of calling the Agent's handler for every single event, it waits for a `batchWindowMs` or until the `maxBatchSize` is reached.
+*   **Storm Immunity**: Even if 10,000 signals arrive, the Manager will only deliver them in manageable chunks to the hardware-constrained Vendor logic.
+
+#### **Default Batching Values**
+The system is configured in `VENDOR_Init` ([vendor.c:L1436](file:///Users/oscar.leal2/IdeaProjects/obusp_rbus/usp-pa-vendor-rdk/src/vendor/vendor.c#L1436-1437)) with the following defaults:
+*   **`batchWindowMs`**: `500` (Directly controls the maximum latency for discovery events).
+*   **`maxBatchSize`**: `100` (Ensures the Agent is not overwhelmed by a single massive callback).
+
+```c
+// vendor.c:L1430
+rbusDataModelNotificationRequest_t req;
+memset(&req, 0, sizeof(req));
+req.pattern = "Device.";
+req.batching.batchWindowMs = 500;
+req.batching.maxBatchSize = 100;
+```
+
+### C. High-Level Aggregation (USP Agent)
+The **USP Agent (Vendor.c)** performs the final aggregation before informing the outside world (the Controller).
+*   **Event Deduplication**: The Agent's batch handler creates a comma-separated list of all newly registered paths.
+*   **Single USP Signal**: Instead of sending 5,000 "Object Registered" messages over the network to a Controller, the Agent sends **one** single `Device.Registered!` signal containing the entire list.
+
+---
+
+## 6. Threshold Support in RBUS Notifications
+
+While RBUS Core remains a granular, single-event transport, the **NotifyDML Manager** provides high-level "Threshold" support to manage event volume and deduplication.
+
+### A. Three Types of Thresholds
+
+| Threshold Type | Parameter | Logic | Use Case |
+| :--- | :--- | :--- | :--- |
+| **Time-based** | `batchWindowMs` | Flushes the queue every X millisecond. | Ensuring a maximum 500ms discovery latency. |
+| **Count-based** | `maxBatchSize` | Flushes the queue as soon as X items are joined. | Breaking a 5,000 parameter storm into chunks of 100. |
+| **Rate-based** | `coalesceThreshold` | Dedupes events if frequency > threshold. | Dropping intermediate value changes for a noisy signal. |
+
+### B. "Coalesce Threshold" Logic ([rbus_datamodel_notification.c:L374](file:///Users/oscar.leal2/IdeaProjects/obusp_rbus/rbus/src/rbus/rbus_datamodel_notification.c#L374-401))
+
+This specifically targets `ValueChange` events. If a single path changes more than `N` times within a single batch window, the manager replaces the queued value with the latest one, effectively "coalescing" the storm.
+
+```c
+// Internal Manager Logic
+if(sub->batching.coalesceThreshold && evOwned->type == RBUS_DMLNOTIFY_VALUE_CHANGE)
+{
+    if(countForPath + 1 > sub->batching.coalesceThreshold)
+    {
+        /* Replace last queued ValueChange for this path (keep first oldValue). */
+        dmQueuedEvent_t* last = GetLastQueued(sub->queue, evOwned->path);
+        last->ev.newValue = evOwned->newValue; // Keep latest
+        dmEvent_Free(evOwned); // Discard the intermediate event
+        return;
+    }
+}
+```
+
+### C. Configuring Thresholds in the Agent
+
+In **`vendor.c`**, thresholds are configured during initialization:
+
+```c
+rbusDataModelNotificationRequest_t req;
+// ...
+req.batching.batchWindowMs = 500;     // Time Threshold
+req.batching.maxBatchSize = 100;      // Count Threshold
+req.batching.coalesceThreshold = 1;   // Frequency Threshold (Coalesce immediately)
+rbusDataModelNotification_Subscribe(bus, &req, &handle);
+```
+
+---
+
+## 7. Technical Implementation Details
 
 ### A. Memory Safety: Sync vs. Async Tasks
 We updated `dml_register_task_handler` to accept an `is_async` flag.
@@ -130,7 +212,7 @@ We used the provided **`rbusMassProvider`** tool to benchmark the system.
 
 ---
 
-## 6. Functional Reference
+## 7. Functional Reference
 
 ### Datamodel Summary (`Device.X_RDK_DMDiscovery.`)
 
