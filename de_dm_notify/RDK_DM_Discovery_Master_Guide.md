@@ -17,38 +17,69 @@ Any CPE application (e.g., **WiFi Manager**, **Security Component**) that owns d
 ### B. The RBUS Core (Library Layer)
 The low-level C library linked into every process. It provides the transport mechanism and the initial discovery broadcast. It is "unaware" of USP; its only job is to announce that a data model has changed within a specific process.
 
-### C. NotifyDML Manager (Management Layer)
-A specialized engine developed to bridge RBUS and USP. It lives inside the USP Agent and provides the "intelligence" for discovery.
-*   **Difference vs RBUS Core**: While RBUS Core just "shouts" that something happened, the **NotifyDML Manager** listens, queues, filters, and batches those shouts into a format the USP data model can digest without crashing.
+### C. NotifyDML Manager (RBUS Library Layer)
+A specialized engine developed to bridge RBUS and USP. Technically, it is an **independent extension of the RBUS library** (`librbus`).
+*   **Ownership**: It belongs to the **RBUS source tree** (located in `rbus/src/rbus/`).
+*   **Execution**: While it belongs to RBUS, it executes **inside the USP Agent process**. It spawns its own background thread within the Agent's memory space to handle queuing and batching.
+*   **Difference vs RBUS Core**: While RBUS Core just "shouts" that something happened, the **NotifyDML Manager** listens, queues, filters, and batches those shouts into a format the USP data model can digest.
 
 ---
 
 ## 2. Discovery Mechanisms: The "Dual-Path" Strategy
+
+The system uses two parallel mechanisms to ensure no data model elements are missed.
+
+### 2.1 Path A: Reactive (Event-Driven)
+
+This is the primary way parameters are discovered during system runtime.
+
+*   **Logic**: Based on the `rbus.notify.discovery` signal emitted by the **RBUS Core** library whenever a process registers new elements.
+*   **Behavior**: It is instantaneous; new elements appear in USP within milliseconds of their creation on the bus.
+*   **Purpose**: Handle dynamic changes, such as a new WiFi client joining or a security rule being added.
 
 ```mermaid
 sequenceDiagram
     participant P as RBUS Provider (WiFi/Security)
     participant C as RBUS Core (Library)
     participant B as RBUS Bus
-    participant M as NotifyDML Manager (Agent)
-    participant U as USP Core (OBUSPA)
+    box "USP Agent Process"
+        participant M as NotifyDML Manager (RBUS Lib)
+        participant U as USP Core (OBUSPA)
+    end
 
-    Note over P,C: Path A: Reactive Discovery
     P->>C: rbus_regDataElements(Device.Security.Rule.1.)
     C->>C: Register Internally
     C-->>B: Broadcast rbus.notify.discovery.Security
     B-->>M: Signal Received (onNotifyDMLElement)
-    
-    Note over M,U: Context Switch & Batching
     M->>M: Queue for Batch Window (500ms)
     M->>U: USP_REGISTER_GroupedVendorParam()
     U-->>M: USP_ERR_OK
     M->>M: MarkPathAsRegistered()
-    
-    Note over M,U: Path B: Proactive Sync (Periodic)
-    M->>B: rbusElementInfo_get("Device.")
-    B-->>M: Returns full DM List
-    M->>M: Reconcile missing paths
+```
+
+### 2.2 Path B: Proactive (Safety Fallback)
+
+This is a background mechanism used to reconcile the data model.
+
+*   **Logic**: A background thread in the USP Agent periodically performs a wildcard discovery scan using `rbusElementInfo_get`.
+*   **Behavior**: Handled by `DiscoveryThread` (in `vendor.c`). It runs a full sync at boot and then at regular intervals.
+*   **Purpose**: Acts as a safety net for "Boot Races" (where a provider starts before the Agent) or rare cases where a signal might be lost on the bus.
+
+```mermaid
+sequenceDiagram
+    box "USP Agent Process"
+        participant D as DiscoveryThread (vendor.c)
+        participant V as Vendor Discovery Logic
+        participant S as USP Data Model Store
+    end
+    participant B as RBUS Bus
+
+    D->>B: rbusElementInfo_get("Device.", depth=10)
+    B-->>D: Returns full Element List
+    D->>V: Loop through Elements
+    V->>V: IsPathAlreadyRegistered?
+    V->>S: Register Missing Paths
+    S-->>V: Updated
 ```
 
 ---
