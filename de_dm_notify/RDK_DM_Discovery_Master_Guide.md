@@ -1,142 +1,115 @@
 # RDK DM Discovery & NotifyDML - Comprehensive Master Guide
 
-This document is the definitive guide for understanding, implementing, and maintaining the **RDK-USP Data Model Discovery Engine**. It is designed to be accessible to beginners ("For Dummies") while providing the exhaustive technical depth required by system architects and developers.
+This document is the definitive guide for understanding, implementing, and maintaining the **RDK-USP Data Model Discovery Engine**. It uses real-world Router (CPE) examples to ensure technical accuracy and clarity.
 
 ---
 
-## 1. Core Concepts: The "RDK Post Office" Analogy
+## 1. Core Components in a CPE Environment
 
-To understand how a new parameter (like a piece of mail) gets from a component to your phone (USP Controller), imagine a city-wide postal system:
+To understand how a new feature or setting (e.g., a Security Rule) travels from a software component to the USP Controller, we must identify the participating layers:
 
-| Component | Analogy | Real World Description |
+| Component | Role in CPE | Detailed Description |
 | :--- | :--- | :--- |
-| **RBUS Provider** | **The Sender** | An application (like WiFi or Bluetooth) that has new data to share. It "writes the letter" by calling `rbus_regDataElements`. |
-| **RBUS Core (Library)** | **Local Post Office** | A piece of code linked *inside* the Provider app. It immediately notices the "mail" and tells the bus: "Hey, something new just arrived!" |
-| **RBUS Bus** | **The Mail Truck** | The communication system that carries the "Hey, I'm here!" signal across the entire device. |
-| **USP Agent (NotifyDML)** | **The Sorting Facility** | A dedicated engine inside the USP Agent that listens for those signals. It collects them, groups them (Batching), and prepares them for final delivery. |
-| **USP Core (OBUSPA)** | **The Recipient's House** | The final destination. Once sorted and registered here, the parameters are officially "LIVE" and can be seen by the outside world. |
+| **RBUS Provider** | **The Feature App** | An application like **WiFi Manager** or a **Security Firewall**. It registers new capabilities by calling `rbus_regDataElements`. |
+| **RBUS Core (Library)** | **Signal Generator** | Internal logic linked into the Feature App. It immediately generates an event signal when a parameter is registered. |
+| **RBUS Bus** | **The Control Plane** | The internal communication system that broadcasts registration signals across all router processes. |
+| **USP Agent (NotifyDML)** | **The Discovery Engine** | A central service that listens for signals, aggregates them into batches, and updates the USP schema. |
+| **USP Core (OBUSPA)** | **The Management Interface** | The final repository. Once shared here, the feature is visible to the Cloud/App Controller. |
 
 ---
 
-## 2. Supported vs. Instantiated: "The Blueprint vs. The House"
+## 2. Supported vs. Instantiated: "Firmware Capability vs. Active State"
 
-In the world of USP and RDK, there is a CRITICAL difference between these two terms:
+In CPE management, the distinction between what *can* exist and what *does* exist is vital:
 
-### **Supported Data Model (The Blueprint)**
-*   **What it is**: A list of everything that *could* exist on the device.
-*   **Analogy**: A real estate blueprint that shows a house *could* have 5 bedrooms and a pool. The bedrooms aren't built yet, but we know where they would go.
-*   **USP Command**: `GetSupportedDM`.
+### **Supported Data Model (Firmware Blueprint)**
+*   **Definition**: The set of all parameters and objects the device is programmed to understand.
+*   **CPE Example**: The router firmware supports **WiFi 6GHz (Radio.3)**. Even if the hardware isn't active, the "blueprint" for Radio.3 exists in the code.
+*   **USP Query**: `GetSupportedDM`.
 
-### **Instantiated Data Model (The Building)**
-*   **What it is**: The parts of the data model that are **actually active and have data right now**.
-*   **Analogy**: The house is built, but currently only 2 bedrooms are finished and occupied. The "Discovery Engine" is what notices when a 3rd bedroom is finished and "Registers" it.
-*   **USP Command**: `Get` (on a specific object).
-
-> [!IMPORTANT]
-> The RDK DM Discovery Extension's job is to bridge the gap: it watches for **Instantiated** elements appearing on the bus and automatically updates the USP schema so they become **Accessible**.
+### **Instantiated Data Model (Runtime Reality)**
+*   **Definition**: The specific instances and parameters that are currently live and holding data.
+*   **CPE Example**: A user enables a **Guest WiFi Network**. The `Device.WiFi.SSID.2.` instance is "Instantiated" (created) at that moment.
+*   **Discovery Job**: The Discovery Engine watches for these **Instantiated** elements appearing on the RBUS and maps them to the USP tree.
 
 ---
 
-## 3. Simplified Architecture
+## 3. System Architecture (Router Context)
 
-The system uses a **layered approach** to separate the "doing" (Provider) from the "tracking" (Agent).
+The system manages the flow from hardware-level features to high-level management interfaces.
 
 ```mermaid
 graph TD
-    subgraph "External Apps (Providers)"
-        P1["WiFi App"]
-        P2["Bluetooth App"]
-        L["RBUS Library (Core)"]
+    subgraph "Feature Applications"
+        P1["Security (Firewall)"]
+        P2["WiFi Manager"]
+        L["RBUS Core Library"]
     end
 
-    subgraph "The Infrastructure"
-        B(RBUS Message Bus)
+    subgraph "CPE Internal Bus"
+        B(RBUS Control Plane)
     end
 
-    subgraph "USP Agent (OBUSPA)"
+    subgraph "Management Agent (USP)"
         N[NotifyDML Manager]
-        V[Vendor.c Logic]
-        S[USP Schema Store]
+        V[Vendor Discovery Logic]
+        S[USP Data Model Store]
     end
 
-    P1 & P2 -- "1. Register" --> L
-    L -- "2. Shout (Signal)" --> B
-    B -- "3. Hear Signal" --> N
-    N -- "4. Batch/Group" --> V
-    V -- "5. Update" --> S
+    P1 & P2 -- "1. Registers Elements" --> L
+    L -- "2. Broadcasts Signal" --> B
+    B -- "3. Forwards Event" --> N
+    N -- "4. Batches Signals" --> V
+    V -- "5. Updates Schema" --> S
 ```
 
 ---
 
-## 4. Discovery Flows: Single vs. Batch
+## 4. Registration Flows: Single vs. Batch
 
-### **The "Single Item" Flow (Reactive)**
-When a provider registers one single parameter:
-1.  **Provider** calls `rbus_regDataElements`.
+### **The "Single Feature" Trace (WiFi Radio)**
+When the WiFi Manager brings a new radio online:
+1.  **WiFi Manager** calls `rbus_regDataElements` for `Device.WiFi.Radio.1.`.
 2.  **RBUS Core** emits a signal: `rbus.notify.discovery.WiFi`.
-3.  **Agent** receives the signal instantly.
-4.  **Agent** updates the schema: "Device.WiFi.Radio.1.Status" is now available.
+3.  **Discovery Engine** hears the signal and triggers an internal registration task.
+4.  **Result**: Within milliseconds, the Radio appears in the USP Data Model.
 
-### **The "Storm" Flow (Batching)**
-When a provider (like `rbusMassProvider`) registers **5,000 parameters** at once:
-1.  **RBUS Core** sends 5,000 signals as fast as possible.
-2.  **The Manager (Batching)**: Instead of telling the Agent 5,000 times, it puts the signals in a "Bucket" (the Queue).
-3.  **The Thresholds**: 
-    *   It waits **500ms** OR until **100 items** are in the bucket.
-4.  **The Delivery**: The Manager gives the Agent a "Batch" of 100 items at a time.
-5.  **Aggregation**: The Agent tells the Controller: "Here are 100 new things that just appeared!" (using a single `Device.Registered!` signal).
-
----
-
-## 5. Handling Unregistration (Deletions)
-
-What happens when a provider crashes or shuts down?
-
-### **Path A: The Quiet Exit (Reactive)**
-If the provider shuts down gracefully, it sends an `ElementUnregistered` signal. The Agent hears it and removes the path from USP instantly.
-
-### **Path B: The Crash (The "Real Response" Fix)**
-If a provider "vanishes" (crashes):
-1.  The Controller tries to `GET` a parameter from the dead provider.
-2.  RBUS returns: **DESTINATION_NOT_FOUND**.
-3.  The Agent realizes the provider is gone.
-4.  **Immediate Action**: The Agent runs a **Synchronous Deletetion** in the middle of the request.
-5.  **Final Result**: The Agent sends back USP **Error 7005 (Object Not Found)** instead of a generic "Internal Error".
+### **The "Security Storm" Trace (Firewall Rules)**
+When a Security Component registers **500 Firewall Rules** during a boot sequence:
+1.  **Security App** sends 500 signals rapidly.
+2.  **Batching Logic**: The NotifyDML Manager collects these individual signals into a queue.
+3.  **Threshold Enforcement**: 
+    *   It waits **500ms** OR until **100 rules** are queued.
+4.  **Aggregated Update**: The Engine delivers 100 rules at once to the USP Schema Store.
+5.  **Efficiency**: This prevents the router CPU from spiking by reducing the number of context switches between the Bus and the Management Agent.
 
 ---
 
-## 6. Threshold & Optimization Logic
+## 5. Security & Stability: Handling Crashes
 
-The **NotifyDML Manager** (inside `rbus_datamodel_notification.c`) uses three knobs to keep the system fast:
+Dynamic discovery includes safeguards for when components fail or restart.
 
-| Feature | Param | Logic | Why? |
-| :--- | :--- | :--- | :--- |
-| **Time Threshold** | `batchWindowMs` | "Wait X ms before telling the Agent" | Prevents the CPU from maxing out during a storm. |
-| **Count Threshold** | `maxBatchSize` | "Don't hold more than X items in the bucket" | Ensures the "Sorting Facility" doesn't run out of memory. |
-| **Coalesce** | `coalesceThreshold` | "If P.Status changes 10 times, only send the last one" | Drops intermediate noise for values that change too fast. |
+### **Graceful Shutdown**
+When a component like the **Bluetooth Manager** stops, it unregisters its paths. The Engine hears the signal and cleans up the USP model seamlessly.
 
----
-
-## 7. Technical Implementation Reference (Source Code)
-
-### **Key Files & Functions**
-
-*   **`vendor.c`**:
-    *   `VENDOR_Init`: Sets defaults (`batchWindowMs = 500`, `maxBatchSize = 100`).
-    *   `onNotifyDMLBatch`: Iterates through a batch and aggregates them into one USP signal.
-    *   `RDK_GetGroup`: The "Real Response" logic (intercepts DESTINATION_NOT_FOUND).
-*   **`rbus_datamodel_notification.c`**:
-    *   `dmQueueOrDeliver`: The main queuing engine for batching.
-    *   `dmThread`: The background thread that monitors batch windows and discovery signals.
-
-### **Memory Management (Expert Level)**
-The system uses `dml_register_task_handler` with a safety flag:
-*   **Sync (GET Failure)**: Uses **Stack Memory** (no `free()` needed, zero risk of leak).
-*   **Async (Discovery)**: Uses **Heap Memory** (standard `malloc/free`).
+### **Component Crash Protection**
+If the **Security Component** crashes while holding 100 firewall rules:
+1.  The Controller tries to `GET` a rule.
+2.  RBUS returns **DESTINATION_NOT_FOUND**.
+3.  **Real Response Fix**: The Agent detects the crash, performs a **Synchronous Cleanup** of all paths belonging to that component, and notifies the Controller.
+4.  **USP Accuracy**: The Controller receives **Error 7005 (Object Not Found)**, indicating the component is gone, rather than a misleading timeout.
 
 ---
 
-## 8. Summary for Developers
-*   **Granularity**: RBUS follows single events; NotifyDML follows batches.
-*   **Reliability**: Hybrid "Dual-Path" ensures elements are found even if signals are missed.
-*   **Safety**: Automatic cleanup for gone/crashed providers avoids stale data models.
+## 6. Optimization: Coalescing High-Frequency Changes
+
+For noisy parameters like **WiFi Radio Statistics** (which might change every second), the `coalesceThreshold` prevents management overhead:
+*   If `Device.WiFi.Radio.1.Stats.PacketsSent` changes 20 times within one batch window, only the **final value** is sent to the Agent.
+*   This ensures the Data Model reflects current reality without wasting resources on intermediate state transitions.
+
+---
+
+## 7. Implementation Summary
+*   **WiFi/Security Specific**: All discovery logic is tuned for standard CPE features.
+*   **Dual-Path Reliability**: Uses both active signals and background scans to ensure no router setting is missed.
+*   **Hardware Optimized**: Batching and thresholds are set to protect CPU and memory on resource-constrained devices.
