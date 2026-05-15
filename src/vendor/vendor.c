@@ -96,7 +96,6 @@ char *RdkTypeToTypeString(rbusValueType_t type);
 int UspTypeToRdkType(unsigned param_type);
 int CalcIsWritable(char *str, bool *is_writable, int line_number);
 bool IsTopLevelObject(char *path);
-char *ToRbusErrString(int rbus_err);
 int RDK_GetEndpointId(char *buf, int len);
 int RDK_AddObject(int group_id, char *path, int *instance);
 int RDK_DeleteObject(int group_id, char *path);
@@ -255,7 +254,7 @@ void *PingThreadMain(void* params)
     rbus_err = rbus_get(bus_handle, path, &values);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s: rbus_getStr() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_getStr() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         goto exit;
     }
     rbusValue_ToString(values, value_str, sizeof(value_str));
@@ -268,7 +267,7 @@ void *PingThreadMain(void* params)
     rbus_err = rbus_get(bus_handle, path, &values);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s: rbus_getStr() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_getStr() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         goto exit;
     }
     rbusValue_ToString(values, value_str, sizeof(value_str));
@@ -327,7 +326,7 @@ int DEVICE_Ping_TEST_Operate(dm_req_t *req, kv_vector_t *input_args, int instanc
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
         err = USP_ERR_SET_FAILURE;
-        USP_ERR_SetMessage("%s: rbus_setStr() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_setStr() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         goto exit;
     }
 
@@ -335,7 +334,7 @@ int DEVICE_Ping_TEST_Operate(dm_req_t *req, kv_vector_t *input_args, int instanc
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
         err = USP_ERR_SET_FAILURE;
-        USP_ERR_SetMessage("%s: rbus_setStr() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_setStr() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         goto exit;
     }
 
@@ -419,7 +418,7 @@ int VENDOR_Init(void)
     rbus_err = rbus_open(&bus_handle, (char*)USPPA_COMPONENT_NAME);
     if (rbus_err != 0)
     {
-        USP_ERR_SetMessage("%s: rbus_open() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_open() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_INTERNAL_ERROR;
     }
 
@@ -1055,80 +1054,6 @@ bool IsTopLevelObject(char *path)
 
 /*********************************************************************//**
 **
-** ToRbusErrString
-**
-** Converts the given rbus error code to an error string
-**
-** \param   rbus_err - rbus error code
-**
-** \return  string representing the error
-**
-**************************************************************************/
-char *ToRbusErrString(int rbus_err)
-{
-    switch(rbus_err)
-    {
-        case RBUS_ERROR_SUCCESS:
-            return "RBUS_ERROR_SUCCESS";
-        case RBUS_ERROR_BUS_ERROR:
-            return "RBUS_ERROR_BUS_ERROR";
-        case RBUS_ERROR_INVALID_INPUT:
-            return "RBUS_ERROR_INVALID_INPUT";
-        case RBUS_ERROR_NOT_INITIALIZED:
-            return "RBUS_ERROR_NOT_INITIALIZED";
-        case RBUS_ERROR_OUT_OF_RESOURCES:
-            return "RBUS_ERROR_OUT_OF_RESOURCES";
-        case RBUS_ERROR_DESTINATION_NOT_FOUND:
-            return "RBUS_ERROR_DESTINATION_NOT_FOUND";
-        case RBUS_ERROR_DESTINATION_NOT_REACHABLE:
-            return "RBUS_ERROR_DESTINATION_NOT_REACHABLE";
-        case RBUS_ERROR_DESTINATION_RESPONSE_FAILURE:
-            return "RBUS_ERROR_DESTINATION_RESPONSE_FAILURE";
-        case RBUS_ERROR_INVALID_RESPONSE_FROM_DESTINATION:
-            return "RBUS_ERROR_INVALID_RESPONSE_FROM_DESTINATION";
-        case RBUS_ERROR_INVALID_OPERATION:
-            return "RBUS_ERROR_INVALID_OPERATION";
-        case RBUS_ERROR_INVALID_EVENT:
-            return "RBUS_ERROR_INVALID_EVENT";
-        case RBUS_ERROR_INVALID_HANDLE:
-            return "RBUS_ERROR_INVALID_HANDLE";
-        case RBUS_ERROR_SESSION_ALREADY_EXIST:
-            return "RBUS_ERROR_SESSION_ALREADY_EXIST";
-        case RBUS_ERROR_COMPONENT_NAME_DUPLICATE:
-            return "RBUS_ERROR_COMPONENT_NAME_DUPLICATE";
-        case RBUS_ERROR_ELEMENT_NAME_DUPLICATE:
-            return "RBUS_ERROR_ELEMENT_NAME_DUPLICATE";
-        case RBUS_ERROR_ELEMENT_NAME_MISSING:
-            return "RBUS_ERROR_ELEMENT_NAME_MISSING";
-        case RBUS_ERROR_COMPONENT_DOES_NOT_EXIST:
-            return "RBUS_ERROR_COMPONENT_DOES_NOT_EXIST";
-        case RBUS_ERROR_ELEMENT_DOES_NOT_EXIST:
-            return "RBUS_ERROR_ELEMENT_DOES_NOT_EXIST";
-        case RBUS_ERROR_ACCESS_NOT_ALLOWED:
-            return "RBUS_ERROR_ACCESS_NOT_ALLOWED";
-        case RBUS_ERROR_INVALID_CONTEXT:
-            return "RBUS_ERROR_INVALID_CONTEXT";
-        case RBUS_ERROR_TIMEOUT:
-            return "RBUS_ERROR_TIMEOUT";
-        case RBUS_ERROR_ASYNC_RESPONSE:
-            return "RBUS_ERROR_ASYNC_RESPONSE";
-        case RBUS_ERROR_INVALID_METHOD:
-            return "RBUS_ERROR_INVALID_METHOD";
-        case RBUS_ERROR_NOSUBSCRIBERS:
-            return "RBUS_ERROR_NOSUBSCRIBERS";
-        case RBUS_ERROR_SUBSCRIPTION_ALREADY_EXIST:
-            return "RBUS_ERROR_SUBSCRIPTION_ALREADY_EXIST";
-        case RBUS_ERROR_INVALID_NAMESPACE:
-            return "RBUS_ERROR_INVALID_NAMESPACE";
-        case RBUS_ERROR_DIRECT_CON_NOT_EXIST:
-            return "RBUS_ERROR_DIRECT_CON_NOT_EXIST";
-        default:
-            return "unknown RBUS error";
-    }
-}
-
-/*********************************************************************//**
-**
 ** RDK_GetEndpointId
 **
 ** Gets the EndpointId of the device
@@ -1233,7 +1158,7 @@ int RDK_AddObject(int group_id, char *path, int *instance)
     rbus_err = rbusTable_addRow(bus_handle, buf, NULL, (uint32_t *)instance);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s: rbusTable_addRow(%s) failed (%d - %s)", __FUNCTION__, buf, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbusTable_addRow(%s) failed (%d - %s)", __FUNCTION__, buf, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_CREATION_FAILURE;
     }
 
@@ -1271,7 +1196,7 @@ int RDK_DeleteObject(int group_id, char *path)
     rbus_err = rbusTable_removeRow(bus_handle, buf);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s: rbusTable_removeRow(%s) failed (%d - %s)", __FUNCTION__, buf, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbusTable_removeRow(%s) failed (%d - %s)", __FUNCTION__, buf, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_OBJECT_NOT_DELETABLE;
     }
 
@@ -1337,7 +1262,7 @@ int RDK_GetGroup(int group_id, kv_vector_t *params)
     // Exit if unable to get the parameters
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s: rbus_get_Ext() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_get_Ext() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         err = USP_ERR_INTERNAL_ERROR;
         goto exit;
     }
@@ -1422,7 +1347,7 @@ int RDK_SetGroup(int group_id, kv_vector_t *params, unsigned *param_types, int *
         rbus_err = rbus_set(bus_handle, s, rbus_val, &opts);
         if (rbus_err != RBUS_ERROR_SUCCESS)
         {
-            USP_ERR_SetMessage("%s: rbus_set() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+            USP_ERR_SetMessage("%s: rbus_set() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
             err = USP_ERR_SET_FAILURE;
             *failure_index = i;
             rbusValue_Release(rbus_val);
@@ -1471,7 +1396,7 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
         // NOTE: getParameterNames may fail if the table has 0 entries, so just log a warning for this
-        USP_LOG_Warning("%s: rbusElementInfo_get(%s) failed (%d- %s). Returning 0 instances for this object.", __FUNCTION__, path, rbus_err, ToRbusErrString(rbus_err));
+        USP_LOG_Warning("%s: rbusElementInfo_get(%s) failed (%d- %s). Returning 0 instances for this object.", __FUNCTION__, path, rbus_err, rbusError_ToString(rbus_err));
         *expiry_period = 30;
         return USP_ERR_OK;
     }
@@ -1567,7 +1492,7 @@ int RdkResetInner(char *path, char *value, char *debug_msg)
     rbus_err = rbus_open(&bus_handle, (char*)USPPA_COMPONENT_NAME);
     if (rbus_err != 0)
     {
-        USP_ERR_SetMessage("%s: rbus_open() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s: rbus_open() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_INTERNAL_ERROR;
     }
 
@@ -1587,7 +1512,7 @@ int RdkResetInner(char *path, char *value, char *debug_msg)
     rbus_err =rbus_set(bus_handle, path, val, &opts);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_ERR_SetMessage("%s:rbus_set(%s) failed (%d - %s)", __FUNCTION__, path, rbus_err, ToRbusErrString(rbus_err));
+        USP_ERR_SetMessage("%s:rbus_set(%s) failed (%d - %s)", __FUNCTION__, path, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_INTERNAL_ERROR;
     }
 
@@ -1674,7 +1599,7 @@ int Discover_AllDM(kv_vector_t *rdk_objects, kv_vector_t *rdk_params)
     rbus_err = rbusElementInfo_get(bus_handle, "Device.", RBUS_MAX_NAME_DEPTH, &elems);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_LOG_Error("%s: rbusElementInfo_get(%s) failed (%d- %s)", __FUNCTION__, elems->name, rbus_err, ToRbusErrString(rbus_err));
+        USP_LOG_Error("%s: rbusElementInfo_get(%s) failed (%d- %s)", __FUNCTION__, elems->name, rbus_err, rbusError_ToString(rbus_err));
         return USP_ERR_INTERNAL_ERROR;
     }
 
@@ -1841,7 +1766,7 @@ void Add_ParamToDM( char *instantiated_path, char *schema_path, char *write_stat
     rbus_err =rbus_getExt(bus_handle, 1, (const char**)&instantiated_path, &num_values, &values);
     if (rbus_err != RBUS_ERROR_SUCCESS)
     {
-        USP_LOG_Error("%s: rbus_get_Ext() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+        USP_LOG_Error("%s: rbus_get_Ext() failed (%d - %s)", __FUNCTION__, rbus_err, rbusError_ToString(rbus_err));
         USP_LOG_Error("%s: WARNING: Not adding to the data model %s", __FUNCTION__, instantiated_path );
         return;
     }
