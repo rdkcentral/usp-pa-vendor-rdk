@@ -432,7 +432,18 @@ static char *LCM_DeploymentUnit_InstallDU_inputArgs[] =
     "UUID",
     "Username",
     "Password",
+    "Privileged",
+    "NumRequiredUIDs",
     "ExecutionEnvRef",
+    "Signature",
+    "SignatureUsername",
+    "SignaturePassword",
+    "ShutdownDelay",
+    "RequiredRoles",
+    "OptionalRoles",
+    "RequiredUserRoles",
+    "RegisterTrustPaths",
+    "ModuleVersion",
 };
 
 static int LCM_DeploymentUnit_InstallDU(dm_req_t *req, kv_vector_t *in, int instance)
@@ -444,7 +455,18 @@ static int LCM_DeploymentUnit_InstallDU(dm_req_t *req, kv_vector_t *in, int inst
         RBUS_STRING /* UUID */,
         RBUS_STRING /* Username */,
         RBUS_STRING /* Password */,
+        RBUS_BOOLEAN /* Privileged */,
+        RBUS_UINT32 /* NumRequiredUIDs */,
         RBUS_STRING /* ExecutionEnvRef */,
+        RBUS_STRING /* Signature */,
+        RBUS_STRING /* SignatureUsername */,
+        RBUS_STRING /* SignaturePassword */,
+        RBUS_UINT32 /* ShutdownDelay */,
+        RBUS_STRING /* RequiredRoles */,
+        RBUS_STRING /* OptionalRoles */,
+        RBUS_STRING /* RequiredUserRoles */,
+        RBUS_STRING /* RegisterTrustPaths */,
+        RBUS_STRING /* ModuleVersion */,
     };
     STATIC_ASSERT (arg_num == NUM_ELEM(arg_types), "these arrays must be the same size");
     return LCM_Async_rbus_translate(req,in,instance,LCM_DeploymentUnit_InstallDU_inputArgs,arg_types,arg_num,LCM_Generic_callback);
@@ -452,8 +474,16 @@ static int LCM_DeploymentUnit_InstallDU(dm_req_t *req, kv_vector_t *in, int inst
 
 static int LCM_DeploymentUnit_Uninstall(dm_req_t *req, kv_vector_t *in, int instance)
 {
-    //no input arguments to uninstall
-    return LCM_Async_rbus_translate(req,in,instance,NULL,NULL,0,LCM_Generic_callback);
+    static char *uninstall_inputArgs[] =
+    {
+        "RetainData"
+    };
+    rbusValueType_t arg_types [] =
+    {
+        RBUS_BOOLEAN /* RetainData */
+    };
+
+    return LCM_Async_rbus_translate(req,in,instance,uninstall_inputArgs,arg_types,NUM_ELEM(uninstall_inputArgs),LCM_Generic_callback);
 }
 
 //translates usp function arguments to rbus arguments. needs to know what type rbus is expecting ahead of time
@@ -614,7 +644,18 @@ char * LCM_DeploymentUnit_Update_inputArgs[] =
 {
     "URL",
     "Username",
-    "Password"
+    "Password",
+    "Privileged",
+    "NumRequiredUIDs",
+    "Signature",
+    "SignatureUsername",
+    "SignaturePassword",
+    "RequiredRoles",
+    "OptionalRoles",
+    "RequiredUserRoles",
+    "RegisterTrustPaths",
+    "RetainData",
+    "ModuleVersion",
 };
 
 //Note that the callback may need to be specialized in for some functions, but doesn't for any of the currently implemented ones
@@ -641,7 +682,18 @@ static int LCM_DeploymentUnit_Update(dm_req_t *req, kv_vector_t *in, int instanc
     {
         RBUS_STRING /* URL */,
         RBUS_STRING /* Username */,
-        RBUS_STRING /* Password */
+        RBUS_STRING /* Password */,
+        RBUS_BOOLEAN /* Privileged */,
+        RBUS_UINT32 /* NumRequiredUIDs */,
+        RBUS_STRING /* Signature */,
+        RBUS_STRING /* SignatureUsername */,
+        RBUS_STRING /* SignaturePassword */,
+        RBUS_STRING /* RequiredRoles */,
+        RBUS_STRING /* OptionalRoles */,
+        RBUS_STRING /* RequiredUserRoles */,
+        RBUS_STRING /* RegisterTrustPaths */,
+        RBUS_BOOLEAN /* RetainData */,
+        RBUS_STRING /* ModuleVersion */
     };
     STATIC_ASSERT (arg_num == NUM_ELEM(arg_types), "these arrays must be the same size");
     return LCM_Async_rbus_translate(req,in,instance,LCM_DeploymentUnit_Update_inputArgs,arg_types,arg_num,LCM_Generic_callback);
@@ -653,11 +705,22 @@ static int GetStringRbus(dm_req_t *req, char *buf, int len)
     int err = -1;
     int rbus_len = 0;
     const char * str = NULL;
+    char * value_str = NULL;
 
     rbusValue_Init(&value);
     err = GetRbusValue(req->path,&value);
     str = rbusValue_GetString(value, &rbus_len);
-    if (str !=NULL)
+    if (str == NULL)
+    {
+        value_str = rbusValue_ToString(value, NULL, 0);
+        str = value_str;
+        if (str != NULL)
+        {
+            rbus_len = strlen(str);
+        }
+    }
+
+    if (str != NULL)
     {
         //if the string returned from rbus is bigger than usp can support then truncate the value it returns
         if (strlen(str) >= MAX_DM_VALUE_LEN)
@@ -669,6 +732,7 @@ static int GetStringRbus(dm_req_t *req, char *buf, int len)
         err = USP_ERR_OK;
     }
 
+    free(value_str);
     rbusValue_Release(value);
     return err;
 }
@@ -683,6 +747,20 @@ static int GetInt32Rbus(dm_req_t *req, char *buf, int len)
     err = GetRbusValue(req->path,&value);
     int_val = rbusValue_GetInt32(value);
     sprintf(buf,"%i",int_val);
+    rbusValue_Release(value);
+    return err;
+}
+
+static int GetUInt32Rbus(dm_req_t *req, char *buf, int len)
+{
+    rbusValue_t value = NULL;
+    int err = -1;
+    uint32_t uint_val = 0;
+
+    rbusValue_Init(&value);
+    err = GetRbusValue(req->path,&value);
+    uint_val = rbusValue_GetUInt32(value);
+    sprintf(buf,"%u",uint_val);
     rbusValue_Release(value);
     return err;
 }
@@ -755,6 +833,25 @@ static int SetInt32Rbus(dm_req_t *req, char *in)
     if (errno == 0)
     {
         rbusValue_SetInt32(value,int_val);
+        err = SetRbusValue(req->path,&value);
+    }
+
+    rbusValue_Release(value);
+    return err;
+}
+
+static int SetUInt32Rbus(dm_req_t *req, char *in)
+{
+    rbusValue_t value = NULL;
+    int err = -1;
+    uint32_t uint_val;
+
+    rbusValue_Init(&value);
+    errno = 0;
+    uint_val = strtoul(in,NULL,10);
+    if (errno == 0)
+    {
+        rbusValue_SetUInt32(value,uint_val);
         err = SetRbusValue(req->path,&value);
     }
 
@@ -860,179 +957,427 @@ static int LCM_Generic_Method(char * Args[] , rbusValueType_t arg_types [] , int
         return err;
 }
 
-static char *LCM_ExecutionUnit_SetRequestedState_inputArgs[] =
-{
-    "RequestedState" // RequestedState=Idle, RequestedState=Active
-};
-
+static char *LCM_ExecutionUnit_SetRequestedState_inputArgs[] = { "RequestedState" };
+static rbusValueType_t LCM_ExecutionUnit_SetRequestedState_argTypes[] = { RBUS_STRING };
 static int LCM_ExecutionUnit_SetRequestedState(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
 {
-    const int arg_num = NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_inputArgs);
-    rbusValueType_t arg_types [] = 
-    {
-        RBUS_STRING /* RequestedState */
-    };
-    STATIC_ASSERT (arg_num == NUM_ELEM(arg_types), "these arrays must be the same size");
-    return LCM_Generic_Method (LCM_ExecutionUnit_SetRequestedState_inputArgs,arg_types,arg_num, req, command_key, input_args, output_args);
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_inputArgs) == NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecutionUnit_SetRequestedState_inputArgs, LCM_ExecutionUnit_SetRequestedState_argTypes, NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_inputArgs), req, command_key, input_args, output_args);
 }
 
-static char * LCM_ExecEnv_SetRunLevel_inputArgs[] =
+static int LCM_ExecutionUnit_Restart(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
 {
-    "RequestedRunLevel" // RequestedRunLevel=(-1:66535)
-};
+    return LCM_Generic_Method(NULL, NULL, 0, req, command_key, input_args, output_args);
+}
 
+static char *LCM_ExecEnv_SetRunLevel_inputArgs[] = { "RequestedRunLevel" };
+static rbusValueType_t LCM_ExecEnv_SetRunLevel_argTypes[] = { RBUS_INT32 };
 static int LCM_ExecEnv_SetRunLevel(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
 {
-    const int arg_num = NUM_ELEM(LCM_ExecEnv_SetRunLevel_inputArgs);
-    rbusValueType_t arg_types [] = 
-    {
-        RBUS_INT32 /* RequestedRunLevel */
-    };
-    STATIC_ASSERT (arg_num == NUM_ELEM(arg_types), "these arrays must be the same size");
-    return LCM_Generic_Method (LCM_ExecEnv_SetRunLevel_inputArgs,arg_types, arg_num,req, command_key, input_args, output_args);
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_SetRunLevel_inputArgs) == NUM_ELEM(LCM_ExecEnv_SetRunLevel_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_SetRunLevel_inputArgs, LCM_ExecEnv_SetRunLevel_argTypes, NUM_ELEM(LCM_ExecEnv_SetRunLevel_inputArgs), req, command_key, input_args, output_args);
+}
+
+static char *LCM_ExecEnv_ModifyConstraints_inputArgs[] = { "Force", "AllocatedDiskSpace", "AllocatedMemory", "AllocatedCPUPercent" };
+static rbusValueType_t LCM_ExecEnv_ModifyConstraints_argTypes[] = { RBUS_BOOLEAN, RBUS_INT32, RBUS_INT32, RBUS_INT32 };
+static int LCM_ExecEnv_ModifyConstraints(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_ModifyConstraints_inputArgs) == NUM_ELEM(LCM_ExecEnv_ModifyConstraints_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_ModifyConstraints_inputArgs, LCM_ExecEnv_ModifyConstraints_argTypes, NUM_ELEM(LCM_ExecEnv_ModifyConstraints_inputArgs), req, command_key, input_args, output_args);
+}
+
+static char *LCM_ExecEnv_ModifyAvailableRoles_inputArgs[] = { "AvailableRoles", "AvailableUserRoles" };
+static rbusValueType_t LCM_ExecEnv_ModifyAvailableRoles_argTypes[] = { RBUS_STRING, RBUS_STRING };
+static int LCM_ExecEnv_ModifyAvailableRoles(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_ModifyAvailableRoles_inputArgs) == NUM_ELEM(LCM_ExecEnv_ModifyAvailableRoles_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_ModifyAvailableRoles_inputArgs, LCM_ExecEnv_ModifyAvailableRoles_argTypes, NUM_ELEM(LCM_ExecEnv_ModifyAvailableRoles_inputArgs), req, command_key, input_args, output_args);
+}
+
+static char *LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs[] = { "AccessInterfaces" };
+static rbusValueType_t LCM_ExecEnv_ModifyAvailableAccessInterfaces_argTypes[] = { RBUS_STRING };
+static int LCM_ExecEnv_ModifyAvailableAccessInterfaces(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs) == NUM_ELEM(LCM_ExecEnv_ModifyAvailableAccessInterfaces_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs, LCM_ExecEnv_ModifyAvailableAccessInterfaces_argTypes, NUM_ELEM(LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs), req, command_key, input_args, output_args);
+}
+
+static char *LCM_ExecEnv_Restart_inputArgs[] = { "Reason", "Force" };
+static rbusValueType_t LCM_ExecEnv_Restart_argTypes[] = { RBUS_STRING, RBUS_BOOLEAN };
+static int LCM_ExecEnv_Restart(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_Restart_inputArgs) == NUM_ELEM(LCM_ExecEnv_Restart_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_Restart_inputArgs, LCM_ExecEnv_Restart_argTypes, NUM_ELEM(LCM_ExecEnv_Restart_inputArgs), req, command_key, input_args, output_args);
 }
 
 static int LCM_ExecEnv_Reset(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
 {
-   return LCM_Generic_Method (NULL,NULL, 0,req, command_key, input_args, output_args);
+    return LCM_Generic_Method(NULL, NULL, 0, req, command_key, input_args, output_args);
 }
+
+static char *LCM_ExecEnv_Remove_inputArgs[] = { "Force" };
+static rbusValueType_t LCM_ExecEnv_Remove_argTypes[] = { RBUS_BOOLEAN };
+static int LCM_ExecEnv_Remove(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnv_Remove_inputArgs) == NUM_ELEM(LCM_ExecEnv_Remove_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnv_Remove_inputArgs, LCM_ExecEnv_Remove_argTypes, NUM_ELEM(LCM_ExecEnv_Remove_inputArgs), req, command_key, input_args, output_args);
+}
+
+static int LCM_ExecEnv_ApplicationData_Remove(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    return LCM_Generic_Method(NULL, NULL, 0, req, command_key, input_args, output_args);
+}
+
+static char *LCM_ExecEnvClass_AddExecEnv_inputArgs[] = { "Alias", "Name", "ParentExecEnv", "AvailableRoles", "AvailableUserRoles", "Enable", "AllocatedDiskSpace", "AllocatedMemory", "AllocatedCPUPercent" };
+static rbusValueType_t LCM_ExecEnvClass_AddExecEnv_argTypes[] = { RBUS_STRING, RBUS_STRING, RBUS_STRING, RBUS_STRING, RBUS_STRING, RBUS_BOOLEAN, RBUS_INT32, RBUS_INT32, RBUS_INT32 };
+static int LCM_ExecEnvClass_AddExecEnv(dm_req_t *req, char *command_key, kv_vector_t *input_args, kv_vector_t *output_args)
+{
+    STATIC_ASSERT(NUM_ELEM(LCM_ExecEnvClass_AddExecEnv_inputArgs) == NUM_ELEM(LCM_ExecEnvClass_AddExecEnv_argTypes), "these arrays must be the same size");
+    return LCM_Generic_Method(LCM_ExecEnvClass_AddExecEnv_inputArgs, LCM_ExecEnvClass_AddExecEnv_argTypes, NUM_ELEM(LCM_ExecEnvClass_AddExecEnv_inputArgs), req, command_key, input_args, output_args);
+}
+
+typedef struct
+{
+    const char *path;
+    const char *table_path;
+} lcm_num_entry_param_t;
+
+typedef struct
+{
+    const char *path;
+} lcm_table_object_t;
+
+typedef struct
+{
+    const char *path;
+    unsigned type;
+    bool writable;
+} lcm_param_registration_t;
+
+static lcm_table_object_t lcm_table_objects[] =
+{
+    { DEV_SM_ROOT "ExecEnvClass.{i}" },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Capability.{i}" },
+    { DEV_SM_ROOT "ExecEnv.{i}" },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}" },
+    { DEV_SM_ROOT "DeploymentUnit.{i}" },
+    { DEV_SM_ROOT "ExecutionUnit.{i}" },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}" },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariable.{i}" },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}" },
+    { DEV_SM_ROOT "Config.Repository.{i}" },
+};
+
+static lcm_num_entry_param_t lcm_num_entries[] =
+{
+    { DEV_SM_ROOT "ExecEnvClassNumberOfEntries", DEV_SM_ROOT "ExecEnvClass.{i}" },
+    { DEV_SM_ROOT "ExecEnvNumberOfEntries", DEV_SM_ROOT "ExecEnv.{i}" },
+    { DEV_SM_ROOT "DeploymentUnitNumberOfEntries", DEV_SM_ROOT "DeploymentUnit.{i}" },
+    { DEV_SM_ROOT "ExecutionUnitNumberOfEntries", DEV_SM_ROOT "ExecutionUnit.{i}" },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.CapabilityNumberOfEntries", DEV_SM_ROOT "ExecEnvClass.{i}.Capability.{i}" },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationDataNumberOfEntries", DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}" },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObjectNumberOfEntries", DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}" },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariableNumberOfEntries", DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariable.{i}" },
+    { DEV_SM_ROOT "LocalManagement.ActionNumberOfEntries", DEV_SM_ROOT "LocalManagement.Action.{i}" },
+    { DEV_SM_ROOT "Config.RepositoryNumberOfEntries", DEV_SM_ROOT "Config.Repository.{i}" },
+};
+
+static lcm_param_registration_t lcm_params[] =
+{
+    { DEV_SM_ROOT "ExecEnvClassNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnvNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "DeploymentUnitNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnitNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Vendor", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Version", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.DeploymentUnitRef", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.CapabilityNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Capability.{i}.Specification", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Capability.{i}.SpecificationVersion", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnvClass.{i}.Capability.{i}.SpecificationURI", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Enable", DM_BOOL, true },
+    { DEV_SM_ROOT "ExecEnv.{i}.Status", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Type", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.InitialRunLevel", DM_UINT, true },
+    { DEV_SM_ROOT "ExecEnv.{i}.CurrentRunLevel", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.InitialExecutionUnitRunLevel", DM_INT, true },
+    { DEV_SM_ROOT "ExecEnv.{i}.Vendor", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Version", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ParentExecEnv", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AllocatedDiskSpace", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AllocatedMemory", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AllocatedCPUPercent", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableDiskSpace", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableMemory", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableCPUPercent", DM_INT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ActiveExecutionUnits", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ProcessorRefList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.CreatedAt", DM_DATETIME, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ExecEnvClassRef", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationDataNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.RestartReason", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.RestartCount", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.LastRestarted", DM_DATETIME, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.Signers", DM_STRING, true },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableRoles", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableAccessInterfaces", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.AvailableUserRoles", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Capacity", DM_UINT, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Encrypted", DM_BOOL, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Retain", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.AccessPath", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.ApplicationUUID", DM_STRING, false },
+    { DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Utilization", DM_UINT, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.UUID", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.DUID", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Status", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Resolved", DM_BOOL, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.URL", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Description", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Vendor", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Version", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.VendorLogList", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.VendorConfigList", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.ExecutionUnitList", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.ExecutionEnvRef", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.InternalController", DM_STRING, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.Installed", DM_DATETIME, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.LastUpdate", DM_DATETIME, false },
+    { DEV_SM_ROOT "DeploymentUnit.{i}.ModuleVersion", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EUID", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ExecEnvLabel", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Status", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ExecutionFaultCode", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ExecutionFaultMessage", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoStart", DM_BOOL, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.RunLevel", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Vendor", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Version", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Description", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Privileged", DM_BOOL, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedDiskSpace", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.DiskSpaceInUse", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedMemory", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.MemoryInUse", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedCPUPercent", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.CPUPercentInUse", DM_INT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedEUUID", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedEUGID", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedHostUID", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AllocatedHostGID", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.CreationTime", DM_DATETIME, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.Uptime", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ShutdownDelay", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.References", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AssociatedProcessList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.VendorLogList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.VendorConfigList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ApplicationDataList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.ExecutionEnvRef", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObjectNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariableNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.RequiredRoles", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.OptionalRoles", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.RequiredUserRoles", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AvailableUserRoleCapabilities", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.RegisterTrustPaths", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.Enable", DM_BOOL, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.RetryMinimumWaitInterval", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.RetryMaximumWaitInterval", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.RetryIntervalMultiplier", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.MaximumRetryCount", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.ResetPeriod", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.RetryCount", DM_UINT, true },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.LastRestarted", DM_DATETIME, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.AutoRestart.NextRestart", DM_DATETIME, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.NetworkConfig.AccessInterfaceRefList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.NetworkConfig.PortMappingRefList", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}.Source", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}.Destination", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}.Options", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.HostObject.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariable.{i}.Key", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariable.{i}.Value", DM_STRING, false },
+    { DEV_SM_ROOT "ExecutionUnit.{i}.EnvVariable.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.SystemName", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.ActionNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.Action", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.UUID", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.ExecEnvName", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.PreviousModuleVersion", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.CurrentModuleVersion", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.Status", DM_STRING, false },
+    { DEV_SM_ROOT "LocalManagement.Action.{i}.FaultMessage", DM_STRING, false },
+    { DEV_SM_ROOT "Config.RepositoryNumberOfEntries", DM_UINT, false },
+    { DEV_SM_ROOT "Config.Certificate", DM_STRING, true },
+    { DEV_SM_ROOT "Config.CABundle", DM_STRING, true },
+    { DEV_SM_ROOT "Config.SupportedDUSignatureProtocols", DM_STRING, false },
+    { DEV_SM_ROOT "Config.DUSignatureProtocols", DM_STRING, true },
+    { DEV_SM_ROOT "Config.Repository.{i}.Alias", DM_STRING, false },
+    { DEV_SM_ROOT "Config.Repository.{i}.Enable", DM_BOOL, true },
+    { DEV_SM_ROOT "Config.Repository.{i}.Name", DM_STRING, false },
+    { DEV_SM_ROOT "Config.Repository.{i}.BaseURL", DM_STRING, true },
+    { DEV_SM_ROOT "Config.Repository.{i}.Certificate", DM_STRING, true },
+    { DEV_SM_ROOT "Config.Repository.{i}.CABundle", DM_STRING, true },
+    { DEV_SM_ROOT "Config.Repository.{i}.Type", DM_STRING, true },
+};
+
+static void LCM_RegisterParam(const lcm_param_registration_t *param)
+{
+    int is_rw = param->writable;
+    switch (param->type)
+    {
+        case DM_BOOL:
+            if (is_rw)
+            {
+                USP_REGISTER_VendorParam_ReadWrite(param->path, GetBoolRbus, SetBoolRbus, NULL, DM_BOOL);
+            }
+            else
+            {
+                USP_REGISTER_VendorParam_ReadOnly(param->path, GetBoolRbus, DM_BOOL);
+            }
+            break;
+
+        case DM_INT:
+            if (is_rw)
+            {
+                USP_REGISTER_VendorParam_ReadWrite(param->path, GetInt32Rbus, SetInt32Rbus, NULL, DM_INT);
+            }
+            else
+            {
+                USP_REGISTER_VendorParam_ReadOnly(param->path, GetInt32Rbus, DM_INT);
+            }
+            break;
+
+        case DM_UINT:
+            if (is_rw)
+            {
+                USP_REGISTER_VendorParam_ReadWrite(param->path, GetUInt32Rbus, SetUInt32Rbus, NULL, DM_UINT);
+            }
+            else
+            {
+                USP_REGISTER_VendorParam_ReadOnly(param->path, GetUInt32Rbus, DM_UINT);
+            }
+            break;
+
+        case DM_DATETIME:
+            USP_REGISTER_VendorParam_ReadOnly(param->path, GetStringRbus, DM_DATETIME);
+            break;
+
+        case DM_STRING:
+        default:
+            if (is_rw)
+            {
+                USP_REGISTER_VendorParam_ReadWrite(param->path, GetStringRbus, SetStringRbus, NULL, DM_STRING);
+            }
+            else
+            {
+                USP_REGISTER_VendorParam_ReadOnly(param->path, GetStringRbus, DM_STRING);
+            }
+            break;
+    }
+}
+
+static char *DUStateChange_Args[] = { "UUID", "DeploymentUnitRef", "Version", "CurrentState", "Resolved", "ExecutionUnitRefList", "StartTime", "CompleteTime", "OperationPerformed" };
+static char *ExecEnvRestarted_Args[] = { "RestartTime", "RestartReason" };
+static char *InstallDU_outputArgs[] = { "UUID", "Version", "ExecEnvRef" };
+static char *ExecEnvClass_AddExecEnv_outputArgs[] = { "ExecEnvRef" };
 
 static void LCM_RegisterDataModel(void)
 {
-    //TR-181 datamodel Registration for RBUS
+    const int param_count = NUM_ELEM(lcm_params);
+    const int table_count = NUM_ELEM(lcm_table_objects);
+    const int num_entries_count = NUM_ELEM(lcm_num_entries);
 
-    USP_REGISTER_AsyncOperation    (DEV_SM_ROOT "InstallDU()",LCM_DeploymentUnit_InstallDU,NULL);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "InstallDU()",
-        LCM_DeploymentUnit_InstallDU_inputArgs,NUM_ELEM(LCM_DeploymentUnit_InstallDU_inputArgs),NULL,0);
-
-    //
-    //ExecutionUnit table
-    //
-    USP_REGISTER_Object(DEV_SM_ROOT "ExecutionUnit.{i}", 
-    ValidateAdd_RbusTable, Add_RbusTableRow, NotifyAdd_RbusTable,
-    ValidateDelete_RbusTable, Delete_RbusTableRow, NotifyDelete_RbusTable);
-
-    USP_REGISTER_Param_NumEntries( 
-    DEV_SM_ROOT "ExecutionUnitNumberOfEntries",
-    DEV_SM_ROOT "ExecutionUnit.{i}");
-
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "ExecutionUnit.{i}.Name"             ,GetStringRbus, SetStringRbus,NULL,DM_STRING);
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "ExecutionUnit.{i}.Status"             ,GetStringRbus, SetStringRbus,NULL,DM_STRING);
-    // SetRequestedState (RequestedState=Idle|Active)
-    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecutionUnit.{i}.SetRequestedState()", LCM_ExecutionUnit_SetRequestedState);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecutionUnit.{i}.SetRequestedState()",
-        LCM_ExecutionUnit_SetRequestedState_inputArgs,NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_inputArgs),NULL,0);
-
-    //
-    //DeploymentUnit table
-    //
-    USP_REGISTER_Object(DEV_SM_ROOT "DeploymentUnit.{i}", 
-    ValidateAdd_RbusTable, Add_RbusTableRow, NotifyAdd_RbusTable,
-    ValidateDelete_RbusTable, Delete_RbusTableRow, NotifyDelete_RbusTable);
-
-    USP_REGISTER_Param_NumEntries(
-    DEV_SM_ROOT "DeploymentUnitNumberOfEntries",
-    DEV_SM_ROOT "DeploymentUnit.{i}");
-
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "DeploymentUnit.{i}.URL"     ,GetStringRbus, SetStringRbus,NULL,DM_STRING);
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "DeploymentUnit.{i}.Status"  ,GetStringRbus, SetStringRbus,NULL,DM_STRING);
-
-
-    //must be registered after the table
-    USP_REGISTER_AsyncOperation    (DEV_SM_ROOT "DeploymentUnit.{i}.Uninstall()",LCM_DeploymentUnit_Uninstall,NULL);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "DeploymentUnit.{i}.Uninstall()",NULL,0,NULL,0);
-
-    USP_REGISTER_AsyncOperation    (DEV_SM_ROOT "DeploymentUnit.{i}.Update()",LCM_DeploymentUnit_Update,NULL);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "DeploymentUnit.{i}.Update()",LCM_DeploymentUnit_Update_inputArgs,NUM_ELEM(LCM_DeploymentUnit_Update_inputArgs),NULL,0);
-
-    //
-    //ExecEnv table
-    //
-        USP_REGISTER_Object(DEV_SM_ROOT "ExecEnv.{i}", 
-    ValidateAdd_RbusTable, Add_RbusTableRow, NotifyAdd_RbusTable,
-    ValidateDelete_RbusTable, Delete_RbusTableRow, NotifyDelete_RbusTable);
-
-    USP_REGISTER_Param_NumEntries(
-    DEV_SM_ROOT "ExecEnvNumberOfEntries",
-    DEV_SM_ROOT "ExecEnv.{i}");
-
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "ExecEnv.{i}.Enable"          ,GetBoolRbus, SetBoolRbus,NULL,DM_BOOL);
-    USP_REGISTER_VendorParam_ReadOnly (DEV_SM_ROOT "ExecEnv.{i}.Status"          ,GetStringRbus,DM_STRING);
-    USP_REGISTER_VendorParam_ReadOnly (DEV_SM_ROOT "ExecEnv.{i}.Name"            ,GetStringRbus,DM_STRING);
-    USP_REGISTER_VendorParam_ReadWrite(DEV_SM_ROOT "ExecEnv.{i}.InitialRunLevel" ,GetInt32Rbus, SetInt32Rbus,NULL,DM_INT);
-    USP_REGISTER_VendorParam_ReadOnly (DEV_SM_ROOT "ExecEnv.{i}.CurrentRunLevel" ,GetInt32Rbus,DM_INT);
-
-    USP_REGISTER_SyncOperation    (DEV_SM_ROOT "ExecEnv.{i}.SetRunLevel()",LCM_ExecEnv_SetRunLevel);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.SetRunLevel()",LCM_ExecEnv_SetRunLevel_inputArgs,NUM_ELEM(LCM_ExecEnv_SetRunLevel_inputArgs),NULL,0);
-
-    USP_REGISTER_SyncOperation    (DEV_SM_ROOT "ExecEnv.{i}.Reset()",LCM_ExecEnv_Reset);
-    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.Reset()",NULL,0,NULL,0);
-
-    //commented out fields exist in the spec but are not implemented in the mock
-    static char *DUStateChange_Args[] =
+    // Register all multi-instance objects under Device.SoftwareModules
+    for (int i = 0; i < table_count; i++)
     {
-        //"UUID",   //rfc4122
-        "DeploymentUnitRef",
-        //"Version",
-        "CurrentState",
-        "Resolved",
-        //"ExecutionUnitRefList",
-        "StartTime",  // iso 8601 formatted time
-        "CompleteTime", // iso 8601 formatted time
-        "OperationPerformed",
-        "FaultCode",
-        "FaultString"
-    };
+        USP_REGISTER_Object(lcm_table_objects[i].path,
+            ValidateAdd_RbusTable, Add_RbusTableRow, NotifyAdd_RbusTable,
+            ValidateDelete_RbusTable, Delete_RbusTableRow, NotifyDelete_RbusTable);
+    }
+
+    // Register NumberOfEntries parameters mappings
+    for (int i = 0; i < num_entries_count; i++)
+    {
+        USP_REGISTER_Param_NumEntries(lcm_num_entries[i].path, lcm_num_entries[i].table_path);
+    }
+
+    // Register all SoftwareModules parameters and wire each to RBUS passthrough handlers
+    for (int i = 0; i < param_count; i++)
+    {
+        LCM_RegisterParam(&lcm_params[i]);
+    }
+
+    // Register all operations for Device.SoftwareModules
+    USP_REGISTER_AsyncOperation(DEV_SM_ROOT "InstallDU()", LCM_DeploymentUnit_InstallDU, NULL);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "InstallDU()", LCM_DeploymentUnit_InstallDU_inputArgs, NUM_ELEM(LCM_DeploymentUnit_InstallDU_inputArgs), InstallDU_outputArgs, NUM_ELEM(InstallDU_outputArgs));
+
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnvClass.{i}.AddExecEnv()", LCM_ExecEnvClass_AddExecEnv);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnvClass.{i}.AddExecEnv()", LCM_ExecEnvClass_AddExecEnv_inputArgs, NUM_ELEM(LCM_ExecEnvClass_AddExecEnv_inputArgs), ExecEnvClass_AddExecEnv_outputArgs, NUM_ELEM(ExecEnvClass_AddExecEnv_outputArgs));
+
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.SetRunLevel()", LCM_ExecEnv_SetRunLevel);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.SetRunLevel()", LCM_ExecEnv_SetRunLevel_inputArgs, NUM_ELEM(LCM_ExecEnv_SetRunLevel_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.ModifyConstraints()", LCM_ExecEnv_ModifyConstraints);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.ModifyConstraints()", LCM_ExecEnv_ModifyConstraints_inputArgs, NUM_ELEM(LCM_ExecEnv_ModifyConstraints_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.ModifyAvailableRoles()", LCM_ExecEnv_ModifyAvailableRoles);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.ModifyAvailableRoles()", LCM_ExecEnv_ModifyAvailableRoles_inputArgs, NUM_ELEM(LCM_ExecEnv_ModifyAvailableRoles_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.ModifyAvailableAccessInterfaces()", LCM_ExecEnv_ModifyAvailableAccessInterfaces);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.ModifyAvailableAccessInterfaces()", LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs, NUM_ELEM(LCM_ExecEnv_ModifyAvailableAccessInterfaces_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.Restart()", LCM_ExecEnv_Restart);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.Restart()", LCM_ExecEnv_Restart_inputArgs, NUM_ELEM(LCM_ExecEnv_Restart_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.Reset()", LCM_ExecEnv_Reset);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.Reset()", NULL, 0, NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.Remove()", LCM_ExecEnv_Remove);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.Remove()", LCM_ExecEnv_Remove_inputArgs, NUM_ELEM(LCM_ExecEnv_Remove_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Remove()", LCM_ExecEnv_ApplicationData_Remove);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecEnv.{i}.ApplicationData.{i}.Remove()", NULL, 0, NULL, 0);
+
+    USP_REGISTER_AsyncOperation(DEV_SM_ROOT "DeploymentUnit.{i}.Update()", LCM_DeploymentUnit_Update, NULL);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "DeploymentUnit.{i}.Update()", LCM_DeploymentUnit_Update_inputArgs, NUM_ELEM(LCM_DeploymentUnit_Update_inputArgs), NULL, 0);
+    USP_REGISTER_AsyncOperation(DEV_SM_ROOT "DeploymentUnit.{i}.Uninstall()", LCM_DeploymentUnit_Uninstall, NULL);
+    static char *DeploymentUnit_Uninstall_inputArgs[] = { "RetainData" };
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "DeploymentUnit.{i}.Uninstall()", DeploymentUnit_Uninstall_inputArgs, NUM_ELEM(DeploymentUnit_Uninstall_inputArgs), NULL, 0);
+
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecutionUnit.{i}.SetRequestedState()", LCM_ExecutionUnit_SetRequestedState);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecutionUnit.{i}.SetRequestedState()", LCM_ExecutionUnit_SetRequestedState_inputArgs, NUM_ELEM(LCM_ExecutionUnit_SetRequestedState_inputArgs), NULL, 0);
+    USP_REGISTER_SyncOperation(DEV_SM_ROOT "ExecutionUnit.{i}.Restart()", LCM_ExecutionUnit_Restart);
+    USP_REGISTER_OperationArguments(DEV_SM_ROOT "ExecutionUnit.{i}.Restart()", NULL, 0, NULL, 0);
+
+    // Register events for Device.SoftwareModules
     USP_REGISTER_Event(DEV_SM_ROOT "DUStateChange!");
     USP_REGISTER_EventArguments(DEV_SM_ROOT "DUStateChange!", DUStateChange_Args, NUM_ELEM(DUStateChange_Args));
-
-    return;
-}
-
-static bool CheckRbusProviderRunning(const char * path) {
-    bool is_running = false;
-    int numOfOutVals = 0;
-    rbusProperty_t outputVals = NULL;
-    const char *pInputParam[2] = {path, 0};
-
-    if (rbus_getExt(rbus_handle, 1, pInputParam, &numOfOutVals, &outputVals) == RBUS_ERROR_SUCCESS) 
-    {
-        is_running = true;
-    }
-    rbusProperty_Release(outputVals);
-
-    return is_running;
+    USP_REGISTER_Event(DEV_SM_ROOT "ExecEnv.{i}.Restarted!");
+    USP_REGISTER_EventArguments(DEV_SM_ROOT "ExecEnv.{i}.Restarted!", ExecEnvRestarted_Args, NUM_ELEM(ExecEnvRestarted_Args));
 }
 
 static pthread_t init_thread;
 static bool stopped = false;
 void * DatamodelInitThread(__attribute((unused)) void * ptr)
 {
-    //wait for an rbus provider providing the tables in the data model to be up and running
-    const char * table_check [3]= 
+    if (stopped)
     {
-        DEV_SM_ROOT "ExecutionUnit.",
-        DEV_SM_ROOT "DeploymentUnit.",
-        DEV_SM_ROOT "ExecEnv."
-    } ;
-
-    for (int i = 0 ; i < 3; i ++)
-    {
-        while (!CheckRbusProviderRunning(table_check[i])) 
-        {
-            sleep(1);
-            if (stopped) //allow this to exit in the case where the provider is never started before the program is stopped
-            {
-                return NULL;
-            }
-        }
+        return NULL;
     }
-    
 
-    //get the number of tables from rbus and synchronise them here
-    LCM_setupRbusTable(DEV_SM_ROOT "ExecutionUnit.");
-    LCM_setupRbusTable(DEV_SM_ROOT "DeploymentUnit.");
+    // Synchronise all SoftwareModules table roots from RBUS. RBUS determines supportability.
+    LCM_setupRbusTable(DEV_SM_ROOT "ExecEnvClass.");
     LCM_setupRbusTable(DEV_SM_ROOT "ExecEnv.");
+    LCM_setupRbusTable(DEV_SM_ROOT "DeploymentUnit.");
+    LCM_setupRbusTable(DEV_SM_ROOT "ExecutionUnit.");
+    LCM_setupRbusTable(DEV_SM_ROOT "LocalManagement.Action.");
+    LCM_setupRbusTable(DEV_SM_ROOT "Config.Repository.");
 
     //register all events in the top level provider (i.e. Events not in any tables)
     LCM_SubOrUnsubToAllEvents(DEV_SM_ROOT,true);
@@ -1081,4 +1426,3 @@ static int LCM_VENDOR_Stop(void)
 
 
 #endif
-
