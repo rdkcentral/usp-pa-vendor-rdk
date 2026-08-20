@@ -88,7 +88,9 @@ rbusHandle_t bus_handle = NULL;
 
 //-------------------------------------------------------------------------------------------------
 // Forward declarations. Note these are not static, because we need them in the symbol table for USP_LOG_Callstack() to show them
+#ifndef REMOVE_FIXUP_REBOOT_CAUSE
 int FixupRebootCause(void);
+#endif
 int RegisterRdkParams(char *filename);
 int RegisterRdkObjects(char *filename);
 int TypeStringToUspType(char *rdk_type_str, unsigned *usp_type, int line_number);
@@ -507,12 +509,14 @@ int VENDOR_Init(void)
         return err;
     }
 
+#ifndef REMOVE_FIXUP_REBOOT_CAUSE
     // Modify the cause of reboot stored in the USP database, if it was triggered by another protocol agent, or the device's UI
     err = FixupRebootCause();
     if (err != USP_ERR_OK)
     {
         return err;
     }
+#endif
 
 #ifndef REMOVE_DEVICE_IP_DIAGNOSTICS
     // Register data model parameters used in VENDOR_USP_REGISTER_Operation
@@ -575,6 +579,7 @@ int VENDOR_Stop(void)
     return USP_ERR_OK;
 }
 
+#ifndef REMOVE_FIXUP_REBOOT_CAUSE
 /*********************************************************************//**
 **
 ** FixupRebootCause
@@ -637,6 +642,7 @@ int FixupRebootCause(void)
 
     return USP_ERR_OK;
 }
+#endif  // REMOVE_FIXUP_REBOOT_CAUSE
 
 /*********************************************************************//**
 **
